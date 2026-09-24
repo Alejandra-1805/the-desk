@@ -26,7 +26,7 @@ footer{padding:28px 4vw;border-top:1px solid var(--line);display:flex;justify-co
 </head>
 <body>
 <header class="top"><a class="brand" href="#top">THE DESK</a><nav class="nav"><a href="#agents">AGENTS</a><a href="#compare">COMPARE</a><a href="#faq">FAQ</a></nav><div class="status"><i></i><span id="status">CONNECTING MARKET DATA</span></div></header>
-<section class="hero" id="top"><div><div class="eyebrow">THE FLOOR / AGENTS 01—04</div><h1>FOUR<br>MINDS.<br>ONE MARKET.</h1><p>Scroll into each desk. Inside every monitor, use the arrows to move through Market, Signals, Thesis and Record.</p><div class="hint">SCROLL TO ENTER THE FLOOR ↓</div></div><div class="office"><img src="assets/office.webp" alt="The Desk trading floor"><div class="chip">LIVE FLOOR / 4 ACTIVE DESKS</div></div></section>
+<section class="hero" id="top"><div><div class="eyebrow">THE FLOOR / AGENTS 01—04</div><h1>FOUR<br>MINDS.<br>ONE MARKET.</h1><p>Scroll into each desk. Inside every monitor, use the arrows to move through Market, Signals, Thesis and Record.</p><div class="hint">SCROLL TO ENTER THE FLOOR ↓</div></div><div class="office"><img src="https://raw.githubusercontent.com/Alejandra-1805/the-desk/main/assets/office.webp" alt="The Desk trading floor"><div class="chip">LIVE FLOOR / 4 ACTIVE DESKS</div></div></section>
 <section class="story" id="agents"><div class="sticky"><div id="slides"></div><div class="agentLabel"><small id="num">AGENT 01 / 04</small><h2 id="labelTicker">AAPL</h2><p id="role">BLUE / QUALITY + TREND</p></div><div class="progress" id="progress"></div><div class="scrolltag">SCROLL = NEXT AGENT · ARROWS = SCREEN INFO</div></div></section>
 <section class="compare" id="compare"><div class="compareHead"><div><div class="eyebrow">THE FOUR-WAY VIEW</div><h2>COMPARE<br>THE DESK.</h2></div><p>The final view removes the characters and leaves only four screens so you can compare price, direction, technical signal, volatility and the current desk note.</p></div><div class="grid" id="grid"></div></section>
 <section class="faq" id="faq"><div class="eyebrow">FAQ</div><h2>WHAT YOU'RE<br>ACTUALLY SEEING.</h2>
@@ -39,10 +39,10 @@ footer{padding:28px 4vw;border-top:1px solid var(--line);display:flex;justify-co
 <footer><span>THE DESK / PREVIEW</span><span>REAL DATA OR NO DATA.</span></footer>
 <script>
 const A=[
-{t:'AAPL',c:'Apple Inc.',r:'BLUE / QUALITY + TREND',cl:'#0878ff',img:'assets/blue.webp'},
-{t:'TSLA',c:'Tesla, Inc.',r:'ORANGE / MOMENTUM + VOLATILITY',cl:'#ff6a00',img:'assets/orange.webp'},
-{t:'NVDA',c:'NVIDIA Corp.',r:'GREEN / GROWTH + CONFIRMATION',cl:'#22a83a',img:'assets/green.webp'},
-{t:'META',c:'Meta Platforms, Inc.',r:'PURPLE / BALANCE + REVERSAL',cl:'#7520f7',img:'assets/purple.webp'}];
+{t:'AAPL',c:'Apple Inc.',r:'BLUE / QUALITY + TREND',cl:'#0878ff',img:'https://raw.githubusercontent.com/Alejandra-1805/the-desk/main/assets/blue.webp'},
+{t:'TSLA',c:'Tesla, Inc.',r:'ORANGE / MOMENTUM + VOLATILITY',cl:'#ff6a00',img:'https://raw.githubusercontent.com/Alejandra-1805/the-desk/main/assets/orange.webp'},
+{t:'NVDA',c:'NVIDIA Corp.',r:'GREEN / GROWTH + CONFIRMATION',cl:'#22a83a',img:'https://raw.githubusercontent.com/Alejandra-1805/the-desk/main/assets/green.webp'},
+{t:'META',c:'Meta Platforms, Inc.',r:'PURPLE / BALANCE + REVERSAL',cl:'#7520f7',img:'https://raw.githubusercontent.com/Alejandra-1805/the-desk/main/assets/purple.webp'}];
 const P=['MARKET','SIGNALS','THESIS','RECORD'];let cur=0,D=A.map(()=>({ok:false})),pg=[0,0,0,0];
 const avg=x=>x.reduce((a,b)=>a+b,0)/x.length;
 function RSI(c,p=14){if(c.length<p+1)return null;let g=0,l=0;for(let i=c.length-p;i<c.length;i++){let d=c[i]-c[i-1];if(d>0)g+=d;else l-=d}return l===0?100:100-(100/(1+(g/p)/(l/p)))}
