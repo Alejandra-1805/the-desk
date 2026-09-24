@@ -213,16 +213,40 @@ window.addEventListener('scroll', ()=>{
 },{passive:true});
 function buildLeague(){ document.getElementById('scoreGrid').innerHTML = AGENTS.map(a=>`<div class="scoreCard"><div class="name" style="color:${a.color}">${a.ticker} · ${a.scoreLabel}</div><div class="big">Competition ready.</div><div class="scoreMeta">Wins <b>—</b><br>Accuracy <b>—</b><br>Streak <b>—</b><br>Status <b>Waiting bot</b></div></div>`).join(''); }
 function renderCompare(){ document.getElementById('compareGrid').innerHTML = AGENTS.map((a,i)=>{ const d=marketData[i], sig=getSignal(d), ch=d.ok?`${d.changePct>=0?'+':''}${d.changePct.toFixed(2)}%`:'WAITING'; return `<article class="compareCard"><div class="compareScreen"><div class="cHead"><div><div class="cTicker">${a.ticker}</div><div class="mCompany">${a.company}</div></div><div><div class="cPrice">${d.ok?money(d.price):'—'}</div><div class="mChange ${!d.ok?'wait':d.changePct>=0?'up':'down'}">${ch}</div></div></div>${d.ok?`<div class="cGrid"><div class="cChart"><svg viewBox="0 0 600 180" preserveAspectRatio="none"><polyline points="${polylinePoints(d.closes.slice(-40))}" fill="none" stroke="${a.color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="cStats">Bias <b>${sig.label}</b><br>RSI14 <b>${d.rsi.toFixed(1)}</b><br>MOM 5D <b>${d.momentum5>=0?'+':''}${d.momentum5.toFixed(2)}%</b><br>VOL20 <b>${d.volatility.toFixed(1)}%</b></div></div><div class="cNote">${sig.note}</div>`:`<div class="waitBox" style="margin-top:16px;height:72%"><div><b>WAITING FOR LIVE DATA</b><span>No chart · no call</span></div></div>`}</div></article>`; }).join(''); }
-async function fetchYahoo(ticker){
-  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=6mo&interval=1d&includePrePost=false`;
-  const res=await fetch(url,{cache:'no-store'}); if(!res.ok) throw new Error('feed');
-  const json=await res.json(); const result=json.chart?.result?.[0]; const q=result?.indicators?.quote?.[0]||{}; const meta=result?.meta||{};
-  const closes=(q.close||[]).filter(Number.isFinite); const opens=(q.open||[]).filter(Number.isFinite); const highs=(q.high||[]).filter(Number.isFinite); const lows=(q.low||[]).filter(Number.isFinite);
-  if(closes.length<55) throw new Error('history');
-  const price=Number(meta.regularMarketPrice ?? closes.at(-1)); const prev=Number(meta.chartPreviousClose ?? closes.at(-2));
-  return { ok:true, price, changePct:(price-prev)/prev*100, open:Number(opens.at(-1)), high:Number(highs.at(-1)), low:Number(lows.at(-1)), volume:Number(meta.regularMarketVolume ?? (q.volume||[]).filter(Number.isFinite).at(-1) ?? 0), sma20:avg(closes.slice(-20)), sma50:avg(closes.slice(-50)), rsi:rsi(closes), volatility:vol(closes), momentum5:(price/closes.at(-6)-1)*100, momentum20:(price/closes.at(-21)-1)*100, closes };
+async function fetchDeskMarket(ticker){
+  const res=await fetch('/api/market?ticker='+encodeURIComponent(ticker),{cache:'no-store'});
+  const json=await res.json();
+  if(!res.ok || !json.ok || !json.data) throw new Error(json.error||'feed');
+  const d=json.data;
+  const closes=(d.candles||[]).map(x=>Number(x.close)).filter(Number.isFinite);
+  if(!closes.length) throw new Error('history');
+  return {
+    ok:true,
+    price:Number(d.price),
+    changePct:Number(d.changePct),
+    open:Number(d.open),
+    high:Number(d.high),
+    low:Number(d.low),
+    volume:Number(d.volume),
+    sma20:Number(d.sma20),
+    sma50:Number(d.sma50),
+    rsi:Number(d.rsi14),
+    volatility:Number(d.volatility20),
+    momentum5:Number(d.momentum5),
+    momentum20:Number(d.momentum20),
+    closes
+  };
 }
-async function loadData(){ let ok=0; await Promise.all(AGENTS.map(async(a,i)=>{ try{ marketData[i]=await fetchYahoo(a.ticker); ok++; }catch(e){ marketData[i]={ok:false}; } })); document.getElementById('statusText').textContent = ok===AGENTS.length ? 'LIVE MARKET DATA' : 'WAITING FOR LIVE DATA'; AGENTS.forEach((_,i)=>{ document.getElementById(`monitor${i}`).innerHTML = renderMonitor(i); }); renderCompare(); }
+async function loadData(){
+  let ok=0;
+  await Promise.all(AGENTS.map(async(a,i)=>{
+    try{ marketData[i]=await fetchDeskMarket(a.ticker); ok++; }
+    catch(e){ marketData[i]={ok:false}; }
+  }));
+  document.getElementById('statusText').textContent = ok===AGENTS.length ? 'LIVE MARKET DATA' : 'WAITING FOR API KEYS';
+  AGENTS.forEach((_,i)=>{ document.getElementById(`monitor${i}`).innerHTML = renderMonitor(i); });
+  renderCompare();
+}
 buildSlides(); buildLeague(); renderCompare(); updateStageCopy(0); loadData();
 </script>
 </body>
