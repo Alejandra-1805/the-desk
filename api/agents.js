@@ -1,5 +1,18 @@
 import { createClient } from "@supabase/supabase-js";
 
+async function heliusBalance(address){
+  const key=process.env.HELIUS_API_KEY||"";
+  if(!key||!address) return null;
+  const r=await fetch("https://mainnet.helius-rpc.com/?api-key="+encodeURIComponent(key),{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({jsonrpc:"2.0",id:"agents",method:"getBalance",params:[address,{commitment:"confirmed"}]})
+  });
+  const j=await r.json();
+  if(!r.ok||j.error) return null;
+  return Number(j.result?.value||0)/1e9;
+}
+
 const configs=[
   {id:"bull",name:"BULL",color:"blue",style:"trend continuation + bullish confirmation"},
   {id:"degen",name:"DEGEN",color:"orange",style:"momentum + volatility + fast trades"},
@@ -30,7 +43,7 @@ export default async function handler(req,res){
       if(!byAgentPositions.has(p.agent_id)) byAgentPositions.set(p.agent_id,[]);
       byAgentPositions.get(p.agent_id).push(p);
     }
-    const data=configs.map(c=>{
+    const data=await Promise.all(configs.map(async c=>{
       const row=byId.get(c.id)||{};
       const wallet=row.wallet_address||process.env["AGENT_"+c.id.toUpperCase()+"_WALLET"]||null;
       const ps=byAgentPositions.get(c.id)||[];
@@ -38,10 +51,11 @@ export default async function handler(req,res){
       const closed=ps.filter(p=>p.status==="CLOSED");
       const realizedPct=closed.reduce((s,p)=>s+Number(p.realized_pct||0),0);
       const unrealizedPct=open.reduce((s,p)=>s+Number(p.unrealized_pct||0),0);
+      const balanceSol=await heliusBalance(wallet);
       return {
         ...c,
         wallet,
-        balanceSol:null,
+        balanceSol,
         generation:Number(row.generation||0),
         bankrollSol:Number(row.bankroll_sol||0),
         realizedPnlSol:Number(row.realized_pnl_sol||0),
@@ -57,7 +71,7 @@ export default async function handler(req,res){
         latestEvent:latest.get(c.id)||null,
         recentTransactions:[]
       };
-    });
+    }));
     return res.status(200).json({ok:true,data});
   }catch(e){
     return res.status(503).json({ok:false,error:e?.message||"Agent status failed"});
