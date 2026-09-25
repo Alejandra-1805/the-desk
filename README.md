@@ -80,3 +80,6 @@ Default configuration is stored as:
 - agent-bankroll share: 50%
 
 These values are configuration only; fee collection and token launch are not activated yet.
+
+
+<!-- env-refresh: 2026-09-24 -->
