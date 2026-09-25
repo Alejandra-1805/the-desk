@@ -38,6 +38,13 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;b
   <pre id="result">No action executed.</pre>
 </div>
 
+<div class="card">
+  <h2>3. Automated signals</h2>
+  <p class="muted">Shows the latest BUY/SELL intents produced by the agents. Loading them requires the same RUN_SECRET.</p>
+  <button class="secondary" onclick="loadSignals()">Refresh signals</button>
+  <pre id="signals">No signals loaded.</pre>
+</div>
+
 <script>
 async function j(url,opts){const r=await fetch(url,opts);let x;try{x=await r.json()}catch{x={error:'Non-JSON response'}};return {status:r.status,...x}}
 async function check(){
@@ -50,6 +57,12 @@ async function preflight(){
   const x=await j('/api/live-preflight');
   if(x?.token?.mint) document.getElementById('mint').value=x.token.mint;
   result.textContent=JSON.stringify(x,null,2);
+}
+async function loadSignals(){
+  const secret=document.getElementById('secret').value.trim();
+  if(!secret){alert('Paste RUN_SECRET first.');return;}
+  const x=await j('/api/trade-intents',{headers:{'x-run-secret':secret}});
+  document.getElementById('signals').textContent=JSON.stringify(x,null,2);
 }
 async function buy(){
   const ok=confirm('This will submit a REAL Solana swap from BULL for up to 0.002 SOL. Continue?');
