@@ -1,9 +1,5 @@
 {
   "functions": {
     "api/*.js": { "maxDuration": 60 }
-  },
-  "crons": [
-    { "path": "/api/paper-mark", "schedule": "*/10 * * * *" },
-    { "path": "/api/paper-scan", "schedule": "*/30 * * * *" }
-  ]
+  }
 }
