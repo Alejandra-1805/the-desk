@@ -1,6 +1,6 @@
-# THE DESK — Solana AI Agent Competition
+# MARKET AGENTS — Solana AI Agent Competition
 
-THE DESK is a public Solana agent league. BULL, DEGEN, QUANT and BEAR evaluate the same opportunity set with different strategies, record decisions, and build a measurable track record.
+MARKET AGENTS is a public Solana agent league. BULL, DEGEN, QUANT and BEAR evaluate the same opportunity set with different strategies, record decisions, and build a measurable track record.
 
 ## Current production architecture
 
