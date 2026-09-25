@@ -15,17 +15,19 @@ async function solUsd(){
 
 export default async function handler(req,res){
   if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
-  const expected=process.env.HELIUS_WEBHOOK_SECRET||"";
-  const supplied=String(req.query.secret||"");
-  if(!expected || supplied!==expected) return res.status(401).json({ok:false,error:"Unauthorized"});
-
-  const feeWallet=process.env.CREATOR_FEE_WALLET||"";
-  if(!feeWallet) return res.status(503).json({ok:false,error:"CREATOR_FEE_WALLET is not configured"});
   const url=process.env.SUPABASE_URL||"", key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
   if(!url||!key) return res.status(503).json({ok:false,error:"Supabase is not configured"});
   const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 
   try{
+    const {data:state}=await supabase.from("system_state").select("key,value").in("key",["scheduler_secret","creator_fee_wallet","project_token_mint"]);
+    const stateMap=new Map((state||[]).map(x=>[x.key,typeof x.value==="string"?x.value:(x.value?.value||x.value)]));
+    const expected=String(stateMap.get("scheduler_secret")||"");
+    const supplied=String(req.headers.authorization||"");
+    if(!expected || supplied!==expected) return res.status(401).json({ok:false,error:"Unauthorized"});
+    const feeWallet=process.env.CREATOR_FEE_WALLET||String(stateMap.get("creator_fee_wallet")||"");
+    const projectMint=process.env.PROJECT_TOKEN_MINT||String(stateMap.get("project_token_mint")||"");
+    if(!feeWallet) return res.status(503).json({ok:false,error:"Creator fee wallet is not configured"});
     const payload=Array.isArray(req.body)?req.body:[req.body];
     const px=await solUsd();
     let inserted=0, totalSol=0, totalUsd=0;
@@ -43,7 +45,7 @@ export default async function handler(req,res){
         source_wallet:incoming[0]?.fromUserAccount||null,
         source_tx_signature:signature,
         fee_wallet:feeWallet,
-        token_mint:process.env.PROJECT_TOKEN_MINT||null,
+        token_mint:projectMint||null,
         amount_sol:amountSol,
         amount_usd:amountUsd,
         processed:false,
