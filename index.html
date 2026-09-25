@@ -165,6 +165,7 @@ let leaderboard=[];
 const short = (s,n=5)=>!s?'—':(s.length<=n*2+3?s:s.slice(0,n)+'…'+s.slice(-n));
 const sol = v=>Number.isFinite(Number(v))?Number(v).toFixed(4)+' SOL':'—';
 const signed = v=>{const n=Number(v||0);return (n>0?'+':'')+n.toFixed(4)+' SOL';};
+const pct = v=>{const n=Number(v||0);return (n>0?'+':'')+n.toFixed(2)+'%';};
 
 function waitBox(title='WAITING FOR LIVE DATA',sub='No fabricated wallet, transaction or P&L data'){
   return `<div class="waitBox"><div><b>${title}</b><span>${sub}</span></div></div>`;
@@ -200,11 +201,11 @@ function recordHtml(d){
   const wins=Number(d.wins||0), losses=Number(d.losses||0);
   const total=wins+losses;
   const acc=total ? (wins/total*100).toFixed(1)+'%' : '—';
-  const pnl=Number(d.realizedPnlSol||0)+Number(d.unrealizedPnlSol||0);
+  const pnl=Number(d.paperScorePct||0);
   return `<div class="recordRow"><span>Generation</span><span>${Number(d.generation||0)}</span><span>GEN</span></div>
     <div class="recordRow"><span>Wins</span><span>${wins}</span><span>${acc}</span></div>
     <div class="recordRow"><span>Losses</span><span>${losses}</span><span>TRACKED</span></div>
-    <div class="recordRow"><span>Total P&L</span><span>${signed(pnl)}</span><span>VERIFIED</span></div>
+    <div class="recordRow"><span>Paper P&L</span><span>${pct(pnl)}</span><span>LIVE MARK</span></div>
     <div class="note">Only stored outcomes and confirmed wallet activity count toward the league.</div>`;
 }
 
@@ -288,10 +289,10 @@ function buildLeague(){
     const d=byId.get(a.id)||agentData.find(x=>x.id===a.id)||{};
     const wins=Number(d.wins||0), losses=Number(d.losses||0), total=wins+losses;
     const acc=total?(wins/total*100).toFixed(1)+'%':'—';
-    const pnl=Number(d.totalPnlSol ?? ((d.realizedPnlSol||0)+(d.unrealizedPnlSol||0)));
+    const pnl=Number(d.scorePct ?? d.paperScorePct ?? 0);
     return `<div class="scoreCard">
       <div class="name" style="color:${a.color}">${a.name} · ${a.scoreLabel}</div>
-      <div class="big">${signed(pnl)}</div>
+      <div class="big">${pct(pnl)}</div>
       <div class="scoreMeta">Wins <b>${wins}</b><br>Accuracy <b>${acc}</b><br>Generation <b>${Number(d.generation||0)}</b><br>Status <b>${d.status||'WAITING'}</b></div>
     </div>`;
   }).join('');
@@ -301,7 +302,7 @@ function renderCompare(){
   document.getElementById('compareGrid').innerHTML=AGENTS.map((a,i)=>{
     const d=agentData[i]||{};
     const e=d.latestEvent||{};
-    const pnl=Number(d.realizedPnlSol||0)+Number(d.unrealizedPnlSol||0);
+    const pnl=Number(d.paperScorePct||0);
     return `<article class="compareCard"><div class="compareScreen">
       <div class="cHead">
         <div><div class="cTicker">${a.name}</div><div class="mCompany">${a.company}</div></div>
@@ -311,7 +312,7 @@ function renderCompare(){
         <div class="cChart" style="display:grid;place-items:center;text-align:center">
           <div><div class="signalTitle" style="color:${a.color}">${e.decision||'WAITING'}</div><div class="cNote">${e.token_symbol||'No verified decision yet'}</div></div>
         </div>
-        <div class="cStats">P&L <b>${signed(pnl)}</b><br>WINS <b>${Number(d.wins||0)}</b><br>OPEN <b>${Number(d.openPositions||0)}</b><br>GEN <b>${Number(d.generation||0)}</b></div>
+        <div class="cStats">P&L <b>${pct(pnl)}</b><br>WINS <b>${Number(d.wins||0)}</b><br>OPEN <b>${Number(d.openPositions||0)}</b><br>GEN <b>${Number(d.generation||0)}</b></div>
       </div>
       <div class="cNote">${e.reason||'Agent is waiting for wallets, API keys and the first scan.'}</div>
     </div></article>`;
@@ -326,7 +327,7 @@ async function loadDesk(){
   try{
     const r=await fetch('/api/agents',{cache:'no-store'}); const j=await r.json();
     if(j.ok && Array.isArray(j.data)){
-      agentData=AGENTS.map(a=>j.data.find(x=>x.id===a.id)||({id:a.id,status:'WAITING WALLET'}));
+      agentData=AGENTS.map(a=>j.data.find(x=>x.id===a.id)||({id:a.id,status:'PAPER READY'}));
     }
   }catch{}
   try{
