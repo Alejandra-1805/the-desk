@@ -37,7 +37,12 @@ export default async function handler(req,res){
     let json;
     try{json=JSON.parse(text);}catch{return res.status(502).json({ok:false,error:"Jupiter returned non-JSON",provider_body:text.slice(0,500)});}
     const arr=Array.isArray(json)?json:(json.tokens||json.data||[]);
-    const data=arr.map(normalize).filter(x=>x.mint).slice(0,20);
+    const data=arr.map(normalize)
+      .filter(x=>x.mint&&x.mint.toLowerCase().endsWith("pump"))
+      .filter(x=>x.organicScore>=60)
+      .filter(x=>x.liquidityUsd>=25000)
+      .filter(x=>x.volume5mUsd>=5000)
+      .slice(0,20);
     return res.status(200).json({ok:true,count:data.length,data});
   }catch(e){
     return res.status(500).json({ok:false,error:e?.message||"Opportunities request failed"});
