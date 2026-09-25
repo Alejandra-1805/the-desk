@@ -81,3 +81,6 @@ HELIUS_WEBHOOK_SECRET=
 7. Only then enable the intended live agents.
 
 Never commit private keys or paste them into chat.
+
+
+<!-- live-env-refresh: 2026-09-25T04:05Z -->
