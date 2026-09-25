@@ -117,7 +117,7 @@ footer{padding:28px 4vw;background:#e9e3d8;border-top:1px solid var(--line);disp
       <div class="kicker">FOUR AGENTS / ONE CHAIN</div>
       <h2>COMPARE<br>THE DESK.</h2>
     </div>
-    <p>After the individual walkthrough, the four terminals stay on screen so you can compare price, signals and each desk's current bias at once.</p>
+    <p>After the individual walkthrough, the four terminals stay on screen so you can compare wallet status, bankroll, P&L and each agent's latest on-chain decision at once.</p>
   </div>
   <div class="compareGrid" id="compareGrid"></div>
 </section>
@@ -145,109 +145,205 @@ footer{padding:28px 4vw;background:#e9e3d8;border-top:1px solid var(--line);disp
 
 <footer>
   <span>THE DESK / VISUAL V0.6</span>
-  <span>COMPETING AGENTS · REAL DATA OR NO DATA</span>
+  <span>COMPETING AI AGENTS · ON-CHAIN OR NO CLAIM</span>
 </footer>
 
 <script>
 const AGENTS = [
-  {ticker:'AAPL', company:'Apple Inc.', role:'BLUE / QUALITY + TREND', color:'#0a7cff', image:'assets/agente_azul.png', desc:'Looks for trend quality, cleaner structure, confirmation above key moving averages and lower-noise setups.', scoreLabel:'QUALITY', competition:'Best when trends are orderly and confirmed.'},
-  {ticker:'TSLA', company:'Tesla, Inc.', role:'ORANGE / MOMENTUM + VOLATILITY', color:'#ff6a00', image:'assets/agente_naranja.png', desc:'Leans into velocity, expansion, short bursts and volatility-driven opportunities.', scoreLabel:'MOMENTUM', competition:'Best when fast moves and volatility dominate.'},
-  {ticker:'NVDA', company:'NVIDIA Corp.', role:'GREEN / GROWTH + CONFIRMATION', color:'#27a744', image:'assets/agente_verde.png', desc:'Focuses on growth leadership, confirmation signals and continuation strength.', scoreLabel:'GROWTH', competition:'Best when leadership names keep confirming.'},
-  {ticker:'META', company:'Meta Platforms, Inc.', role:'PURPLE / BALANCE + REVERSAL', color:'#7d2cff', image:'assets/agente_morado.png', desc:'Balances structure, context and reversal risk before leaning bullish or defensive.', scoreLabel:'BALANCE', competition:'Best when mean reversion and balance matter.'}
+  {id:'bull', name:'BULL', company:'Trend continuation', role:'BLUE / TREND + CONFIRMATION', color:'#0a7cff', image:'assets/agente_azul.png', desc:'Looks for genuine demand, cleaner continuation and strong structure. It is allowed to WAIT when the evidence is weak.', scoreLabel:'TREND'},
+  {id:'degen', name:'DEGEN', company:'Momentum hunter', role:'ORANGE / MOMENTUM + VOLATILITY', color:'#ff6a00', image:'assets/agente_naranja.png', desc:'Moves faster, trades smaller and looks for expanding activity while deterministic risk gates block obvious traps.', scoreLabel:'MOMENTUM'},
+  {id:'quant', name:'QUANT', company:'Systematic desk', role:'GREEN / SYSTEMATIC CONFIRMATION', color:'#27a744', image:'assets/agente_verde.png', desc:'Evidence-first. It prefers organic activity, sufficient liquidity and multiple signals pointing in the same direction.', scoreLabel:'SYSTEMATIC'},
+  {id:'bear', name:'BEAR', company:'Risk desk', role:'PURPLE / RISK + REVERSAL', color:'#7d2cff', image:'assets/agente_morado.png', desc:'Looks for fragility and overextension. Because V1 is spot-only, a bearish view usually means WAIT instead of forcing a trade.', scoreLabel:'RISK'}
 ];
-const PAGES = ['MARKET','SIGNALS','THE CALL','RECORD'];
-let currentAgent = 0;
-let pageIndex = [0,0,0,0];
-let marketData = AGENTS.map(()=>({ok:false}));
-const avg = arr => arr.reduce((a,b)=>a+b,0)/arr.length;
-const money = v => Number.isFinite(v) ? new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}).format(v) : '—';
-const compact = v => Number.isFinite(v) ? new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:1}).format(v) : '—';
-function rsi(closes, p=14){ if(closes.length < p+1) return null; let g=0,l=0; for(let i=closes.length-p;i<closes.length;i++){ const d=closes[i]-closes[i-1]; if(d>0) g+=d; else l-=d; } return l===0 ? 100 : 100 - (100/(1+(g/p)/(l/p))); }
-function vol(closes){ if(closes.length < 12) return null; const xs=[]; for(let i=Math.max(1,closes.length-20);i<closes.length;i++) xs.push((closes[i]-closes[i-1])/closes[i-1]); const m=avg(xs); return Math.sqrt(avg(xs.map(v=>(v-m)**2)))*Math.sqrt(252)*100; }
-function polylinePoints(values,w=600,h=180){ const lo=Math.min(...values), hi=Math.max(...values), sp=hi-lo||1; return values.map((v,i)=>`${i/(values.length-1)*w},${h-12-((v-lo)/sp)*(h-24)}`).join(' '); }
-function getSignal(d){ if(!d.ok) return {label:'WAITING', score:null, note:'Waiting for verified live market data.'}; let s=0; s += d.changePct>0 ? 1 : -1; s += d.price>d.sma20 ? 1 : -1; s += d.price>d.sma50 ? 1 : -1; if(d.rsi>=55 && d.rsi<=72) s++; if(d.rsi>76) s--; if(d.rsi<34) s++; if(d.volatility>70) s--; const label = s>=3 ? 'LONG BIAS' : s<=-3 ? 'SHORT BIAS' : 'WAIT'; const note = `Price is ${d.price>d.sma20?'above':'below'} SMA20 and ${d.price>d.sma50?'above':'below'} SMA50. RSI14 is ${d.rsi.toFixed(1)}. 5D momentum is ${d.momentum5>=0?'+':''}${d.momentum5.toFixed(2)}% and 20D momentum is ${d.momentum20>=0?'+':''}${d.momentum20.toFixed(2)}%. Volatility is ${d.volatility.toFixed(1)}%.`; return {label, score:s, note}; }
-function waitBox(){ return `<div class="waitBox"><div><b>WAITING FOR LIVE DATA</b><span>No chart · no call · no fabricated values</span></div></div>`; }
-function renderMonitor(agentIndex){ const a=AGENTS[agentIndex], d=marketData[agentIndex], sig=getSignal(d); const ch = d.ok ? `${d.changePct>=0?'+':''}${d.changePct.toFixed(2)}%` : 'WAITING FOR LIVE DATA'; return `
-      <div class="monitorInner">
-        <div class="mHead">
-          <div><div class="mTicker">${a.ticker}</div><div class="mCompany">${a.company}</div></div>
-          <div><div class="mPrice">${d.ok?money(d.price):'—'}</div><div class="mChange ${!d.ok?'wait':d.changePct>=0?'up':'down'}">${ch}</div></div>
-        </div>
-        <div class="tabRow">${PAGES.map((p,i)=>`<span class="tab ${pageIndex[agentIndex]===i?'active':''}">${p}</span>`).join('')}</div>
-        <div class="pageWrap">
-          <div class="page ${pageIndex[agentIndex]===0?'active':''}">${d.ok ? `<div class="market"><div class="chartBox"><svg viewBox="0 0 600 180" preserveAspectRatio="none"><polyline points="${polylinePoints(d.closes.slice(-40))}" fill="none" stroke="${a.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="metricCol">Price <b>${money(d.price)}</b><br>Change <b>${ch}</b><br>Open <b>${money(d.open)}</b><br>High <b>${money(d.high)}</b><br>Low <b>${money(d.low)}</b><br>Volume <b>${compact(d.volume)}</b></div></div>` : waitBox()}</div>
-          <div class="page ${pageIndex[agentIndex]===1?'active':''}">${d.ok ? `<div class="signalTitle" style="color:${a.color}">${sig.label}</div><div class="signalGrid"><div class="signalCard"><small>SMA20</small><b>${money(d.sma20)}</b></div><div class="signalCard"><small>SMA50</small><b>${money(d.sma50)}</b></div><div class="signalCard"><small>RSI14</small><b>${d.rsi.toFixed(1)}</b></div><div class="signalCard"><small>VOL20</small><b>${d.volatility.toFixed(1)}%</b></div></div><div class="note">Momentum 5D ${d.momentum5>=0?'+':''}${d.momentum5.toFixed(2)}% · Momentum 20D ${d.momentum20>=0?'+':''}${d.momentum20.toFixed(2)}% · Signal score ${sig.score}</div>` : waitBox()}</div>
-          <div class="page ${pageIndex[agentIndex]===2?'active':''}">${d.ok ? `<div class="signalTitle">${sig.label}</div><div class="thesis"><b>The call</b><br>${sig.note}<br><br><b>Reference price</b> ${money(d.price)}<br><b>Signal score</b> ${sig.score}</div><div class="note">This becomes a locked competition call once the bot stores the timestamp and reference price.</div>` : waitBox()}</div>
-          <div class="page ${pageIndex[agentIndex]===3?'active':''}"><div class="recordRow"><span>Call</span><span>Result</span><span>Status</span></div><div class="recordRow"><span>Latest locked call</span><span>—</span><span>No record</span></div><div class="recordRow"><span>Accuracy</span><span>—</span><span>Waiting bot</span></div><div class="recordRow"><span>League points</span><span>—</span><span>Waiting bot</span></div><div class="note">The competition bot will update wins, streaks, points and historical outcomes here.</div></div>
-        </div>
-        <button class="monBtn prev" onclick="changePage(${agentIndex},-1,event)">‹</button>
-        <button class="monBtn next" onclick="changePage(${agentIndex},1,event)">›</button>
-        <div class="pageCount">${pageIndex[agentIndex]+1} / 4</div>
-      </div>`;
+
+const PAGES=['WALLET','THESIS','ACTIVITY','RECORD'];
+let currentAgent=0;
+let pageIndex=[0,0,0,0];
+let agentData=AGENTS.map(a=>({id:a.id,status:'LOADING'}));
+let leaderboard=[];
+
+const short = (s,n=5)=>!s?'—':(s.length<=n*2+3?s:s.slice(0,n)+'…'+s.slice(-n));
+const sol = v=>Number.isFinite(Number(v))?Number(v).toFixed(4)+' SOL':'—';
+const signed = v=>{const n=Number(v||0);return (n>0?'+':'')+n.toFixed(4)+' SOL';};
+
+function waitBox(title='WAITING FOR LIVE DATA',sub='No fabricated wallet, transaction or P&L data'){
+  return `<div class="waitBox"><div><b>${title}</b><span>${sub}</span></div></div>`;
 }
-function buildSlides(){
-  document.getElementById('slides').innerHTML = AGENTS.map((a,i)=>`
-    <div class="slide ${i===0?'active':''}" id="slide${i}">
-      <div class="agentStage">
-        <div class="agentFrame">
-          <img src="${a.image}" alt="${a.ticker} desk agent">
-          <div class="monitor" id="monitor${i}">${renderMonitor(i)}</div>
-        </div>
+
+function latestEventHtml(d,a){
+  const e=d.latestEvent;
+  if(!e) return waitBox('WAITING FOR FIRST AGENT RUN','The AI decision appears here after the first verified scan');
+  const payload=e.payload||{};
+  const conf=Number(e.confidence||payload.confidence||0);
+  return `<div class="signalTitle" style="color:${a.color}">${e.decision||'WAIT'}</div>
+    <div class="thesis">
+      <b>${e.token_symbol||payload.symbol||'NO TOKEN SELECTED'}</b><br>
+      ${e.reason||payload.comment||'Decision stored by the agent engine.'}
+      <br><br><b>CONFIDENCE</b> ${conf?conf.toFixed(0)+'%':'—'}
+      <br><b>MODE</b> ${(payload.trading_mode||'paper').toUpperCase()}
+    </div>
+    <div class="note">AI proposes · deterministic risk engine decides whether execution is allowed</div>`;
+}
+
+function activityHtml(d){
+  const txs=d.recentTransactions||[];
+  if(!d.wallet) return waitBox('WAITING FOR AGENT WALLET','A dedicated Solana wallet has not been configured yet');
+  if(!txs.length) return waitBox('NO ON-CHAIN ACTIVITY YET','Confirmed transactions will appear here through Helius');
+  return txs.slice(0,4).map(x=>`<div class="recordRow">
+    <span><a href="https://solscan.io/tx/${x.signature}" target="_blank" rel="noopener">${short(x.signature,6)}</a></span>
+    <span>${x.err?'FAILED':'CONFIRMED'}</span>
+    <span>${x.confirmationStatus||'—'}</span>
+  </div>`).join('');
+}
+
+function recordHtml(d){
+  const wins=Number(d.wins||0), losses=Number(d.losses||0);
+  const total=wins+losses;
+  const acc=total ? (wins/total*100).toFixed(1)+'%' : '—';
+  const pnl=Number(d.realizedPnlSol||0)+Number(d.unrealizedPnlSol||0);
+  return `<div class="recordRow"><span>Generation</span><span>${Number(d.generation||0)}</span><span>GEN</span></div>
+    <div class="recordRow"><span>Wins</span><span>${wins}</span><span>${acc}</span></div>
+    <div class="recordRow"><span>Losses</span><span>${losses}</span><span>TRACKED</span></div>
+    <div class="recordRow"><span>Total P&L</span><span>${signed(pnl)}</span><span>VERIFIED</span></div>
+    <div class="note">Only stored outcomes and confirmed wallet activity count toward the league.</div>`;
+}
+
+function renderMonitor(i){
+  const a=AGENTS[i];
+  const d=agentData[i]||{};
+  const walletReady=Boolean(d.wallet);
+  const online=walletReady && d.status!=='WAITING WALLET';
+  return `<div class="monitorInner">
+    <div class="mHead">
+      <div><div class="mTicker">${a.name}</div><div class="mCompany">${a.company}</div></div>
+      <div><div class="mPrice">${walletReady?sol(d.balanceSol):'—'}</div><div class="mChange ${online?'up':'wait'}">${d.status||'WAITING'}</div></div>
+    </div>
+    <div class="tabRow">${PAGES.map((p,k)=>`<span class="tab ${pageIndex[i]===k?'active':''}">${p}</span>`).join('')}</div>
+    <div class="pageWrap">
+      <div class="page ${pageIndex[i]===0?'active':''}">
+        ${walletReady?`<div class="signalTitle" style="color:${a.color}">${sol(d.balanceSol)}</div>
+          <div class="signalGrid">
+            <div class="signalCard"><small>Wallet</small><b>${short(d.wallet,5)}</b></div>
+            <div class="signalCard"><small>Open</small><b>${Number(d.openPositions||0)}</b></div>
+            <div class="signalCard"><small>Bankroll</small><b>${sol(d.bankrollSol)}</b></div>
+            <div class="signalCard"><small>Gen</small><b>${Number(d.generation||0)}</b></div>
+          </div>
+          <div class="note"><a href="https://solscan.io/account/${d.wallet}" target="_blank" rel="noopener">VIEW WALLET ON SOLSCAN ↗</a></div>`:waitBox('WAITING FOR AGENT WALLET','Public address will appear here after wallet setup')}
       </div>
-    </div>`).join('');
-  document.getElementById('progress').innerHTML = AGENTS.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('');
+      <div class="page ${pageIndex[i]===1?'active':''}">${latestEventHtml(d,a)}</div>
+      <div class="page ${pageIndex[i]===2?'active':''}">${activityHtml(d)}</div>
+      <div class="page ${pageIndex[i]===3?'active':''}">${recordHtml(d)}</div>
+    </div>
+    <button class="monBtn prev" onclick="changePage(${i},-1,event)">‹</button>
+    <button class="monBtn next" onclick="changePage(${i},1,event)">›</button>
+    <div class="pageCount">${pageIndex[i]+1} / 4</div>
+  </div>`;
 }
+
+function buildSlides(){
+  document.getElementById('slides').innerHTML=AGENTS.map((a,i)=>`
+    <div class="slide ${i===0?'active':''}" id="slide${i}">
+      <div class="agentStage"><div class="agentFrame">
+        <img src="${a.image}" alt="${a.name} AI agent">
+        <div class="monitor" id="monitor${i}">${renderMonitor(i)}</div>
+      </div></div>
+    </div>`).join('');
+  document.getElementById('progress').innerHTML=AGENTS.map((_,i)=>`<i class="${i===0?'on':''}"></i>`).join('');
+}
+
 function updateStageCopy(i){
   const a=AGENTS[i];
   document.getElementById('stageNum').textContent=`AGENT 0${i+1} / 04`;
-  const el=document.getElementById('stageTicker'); el.textContent=a.ticker; el.style.color=a.color;
+  const el=document.getElementById('stageTicker'); el.textContent=a.name; el.style.color=a.color;
   document.getElementById('stageRole').textContent=a.role;
   document.getElementById('stageDesc').textContent=a.desc;
-  document.documentElement.style.setProperty('--active', a.color);
+  document.documentElement.style.setProperty('--active',a.color);
 }
-function setAgent(i){ if(i===currentAgent) return; currentAgent=i; document.querySelectorAll('.slide').forEach((s,k)=>s.classList.toggle('active', k===i)); document.querySelectorAll('.progress i').forEach((p,k)=>p.classList.toggle('on', k===i)); updateStageCopy(i); }
-function changePage(agentIndex, dir, ev){ ev.stopPropagation(); pageIndex[agentIndex]=(pageIndex[agentIndex]+dir+PAGES.length)%PAGES.length; document.getElementById(`monitor${agentIndex}`).innerHTML = renderMonitor(agentIndex); }
-window.addEventListener('scroll', ()=>{
-  const sec=document.getElementById('agents'); const r=sec.getBoundingClientRect();
-  if(r.top<=0 && r.bottom>=innerHeight){ const progress=Math.max(0, Math.min(.999, -r.top/(sec.offsetHeight-innerHeight))); setAgent(Math.min(3, Math.floor(progress*4))); }
+
+function setAgent(i){
+  if(i===currentAgent)return;
+  currentAgent=i;
+  document.querySelectorAll('.slide').forEach((s,k)=>s.classList.toggle('active',k===i));
+  document.querySelectorAll('.progress i').forEach((p,k)=>p.classList.toggle('on',k===i));
+  updateStageCopy(i);
+}
+
+function changePage(i,dir,ev){
+  ev.stopPropagation();
+  pageIndex[i]=(pageIndex[i]+dir+PAGES.length)%PAGES.length;
+  document.getElementById('monitor'+i).innerHTML=renderMonitor(i);
+}
+
+window.addEventListener('scroll',()=>{
+  const sec=document.getElementById('agents'), r=sec.getBoundingClientRect();
+  if(r.top<=0 && r.bottom>=innerHeight){
+    const p=Math.max(0,Math.min(.999,-r.top/(sec.offsetHeight-innerHeight)));
+    setAgent(Math.min(3,Math.floor(p*4)));
+  }
 },{passive:true});
-function buildLeague(){ document.getElementById('scoreGrid').innerHTML = AGENTS.map(a=>`<div class="scoreCard"><div class="name" style="color:${a.color}">${a.ticker} · ${a.scoreLabel}</div><div class="big">Competition ready.</div><div class="scoreMeta">Wins <b>—</b><br>Accuracy <b>—</b><br>Streak <b>—</b><br>Status <b>Waiting bot</b></div></div>`).join(''); }
-function renderCompare(){ document.getElementById('compareGrid').innerHTML = AGENTS.map((a,i)=>{ const d=marketData[i], sig=getSignal(d), ch=d.ok?`${d.changePct>=0?'+':''}${d.changePct.toFixed(2)}%`:'WAITING'; return `<article class="compareCard"><div class="compareScreen"><div class="cHead"><div><div class="cTicker">${a.ticker}</div><div class="mCompany">${a.company}</div></div><div><div class="cPrice">${d.ok?money(d.price):'—'}</div><div class="mChange ${!d.ok?'wait':d.changePct>=0?'up':'down'}">${ch}</div></div></div>${d.ok?`<div class="cGrid"><div class="cChart"><svg viewBox="0 0 600 180" preserveAspectRatio="none"><polyline points="${polylinePoints(d.closes.slice(-40))}" fill="none" stroke="${a.color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="cStats">Bias <b>${sig.label}</b><br>RSI14 <b>${d.rsi.toFixed(1)}</b><br>MOM 5D <b>${d.momentum5>=0?'+':''}${d.momentum5.toFixed(2)}%</b><br>VOL20 <b>${d.volatility.toFixed(1)}%</b></div></div><div class="cNote">${sig.note}</div>`:`<div class="waitBox" style="margin-top:16px;height:72%"><div><b>WAITING FOR LIVE DATA</b><span>No chart · no call</span></div></div>`}</div></article>`; }).join(''); }
-async function fetchDeskMarket(ticker){
-  const res=await fetch('/api/market?ticker='+encodeURIComponent(ticker),{cache:'no-store'});
-  const json=await res.json();
-  if(!res.ok || !json.ok || !json.data) throw new Error(json.error||'feed');
-  const d=json.data;
-  const closes=(d.candles||[]).map(x=>Number(x.close)).filter(Number.isFinite);
-  if(!closes.length) throw new Error('history');
-  return {
-    ok:true,
-    price:Number(d.price),
-    changePct:Number(d.changePct),
-    open:Number(d.open),
-    high:Number(d.high),
-    low:Number(d.low),
-    volume:Number(d.volume),
-    sma20:Number(d.sma20),
-    sma50:Number(d.sma50),
-    rsi:Number(d.rsi14),
-    volatility:Number(d.volatility20),
-    momentum5:Number(d.momentum5),
-    momentum20:Number(d.momentum20),
-    closes
-  };
+
+function buildLeague(){
+  const byId=new Map(leaderboard.map(x=>[x.id,x]));
+  document.getElementById('scoreGrid').innerHTML=AGENTS.map(a=>{
+    const d=byId.get(a.id)||agentData.find(x=>x.id===a.id)||{};
+    const wins=Number(d.wins||0), losses=Number(d.losses||0), total=wins+losses;
+    const acc=total?(wins/total*100).toFixed(1)+'%':'—';
+    const pnl=Number(d.totalPnlSol ?? ((d.realizedPnlSol||0)+(d.unrealizedPnlSol||0)));
+    return `<div class="scoreCard">
+      <div class="name" style="color:${a.color}">${a.name} · ${a.scoreLabel}</div>
+      <div class="big">${signed(pnl)}</div>
+      <div class="scoreMeta">Wins <b>${wins}</b><br>Accuracy <b>${acc}</b><br>Generation <b>${Number(d.generation||0)}</b><br>Status <b>${d.status||'WAITING'}</b></div>
+    </div>`;
+  }).join('');
 }
-async function loadData(){
-  let ok=0;
-  await Promise.all(AGENTS.map(async(a,i)=>{
-    try{ marketData[i]=await fetchDeskMarket(a.ticker); ok++; }
-    catch(e){ marketData[i]={ok:false}; }
-  }));
-  document.getElementById('statusText').textContent = ok===AGENTS.length ? 'LIVE MARKET DATA' : 'WAITING FOR API KEYS';
-  AGENTS.forEach((_,i)=>{ document.getElementById(`monitor${i}`).innerHTML = renderMonitor(i); });
-  renderCompare();
+
+function renderCompare(){
+  document.getElementById('compareGrid').innerHTML=AGENTS.map((a,i)=>{
+    const d=agentData[i]||{};
+    const e=d.latestEvent||{};
+    const pnl=Number(d.realizedPnlSol||0)+Number(d.unrealizedPnlSol||0);
+    return `<article class="compareCard"><div class="compareScreen">
+      <div class="cHead">
+        <div><div class="cTicker">${a.name}</div><div class="mCompany">${a.company}</div></div>
+        <div><div class="cPrice">${d.wallet?sol(d.balanceSol):'—'}</div><div class="mChange ${d.wallet?'up':'wait'}">${d.status||'WAITING'}</div></div>
+      </div>
+      <div class="cGrid">
+        <div class="cChart" style="display:grid;place-items:center;text-align:center">
+          <div><div class="signalTitle" style="color:${a.color}">${e.decision||'WAITING'}</div><div class="cNote">${e.token_symbol||'No verified decision yet'}</div></div>
+        </div>
+        <div class="cStats">P&L <b>${signed(pnl)}</b><br>WINS <b>${Number(d.wins||0)}</b><br>OPEN <b>${Number(d.openPositions||0)}</b><br>GEN <b>${Number(d.generation||0)}</b></div>
+      </div>
+      <div class="cNote">${e.reason||'Agent is waiting for wallets, API keys and the first scan.'}</div>
+    </div></article>`;
+  }).join('');
 }
-buildSlides(); buildLeague(); renderCompare(); updateStageCopy(0); loadData();
+
+async function loadDesk(){
+  let health={};
+  try{
+    const h=await fetch('/api/health',{cache:'no-store'}); const j=await h.json(); if(j.ok) health=j;
+  }catch{}
+  try{
+    const r=await fetch('/api/agents',{cache:'no-store'}); const j=await r.json();
+    if(j.ok && Array.isArray(j.data)){
+      agentData=AGENTS.map(a=>j.data.find(x=>x.id===a.id)||({id:a.id,status:'WAITING WALLET'}));
+    }
+  }catch{}
+  try{
+    const r=await fetch('/api/leaderboard',{cache:'no-store'}); const j=await r.json(); if(j.ok) leaderboard=j.data||[];
+  }catch{}
+  const ready=health.helius_configured&&health.jupiter_configured&&health.ai_configured&&health.database_configured;
+  document.getElementById('statusText').textContent=ready?'SOLANA DESK ONLINE':'WAITING FOR API KEYS / WALLETS';
+  AGENTS.forEach((_,i)=>{const el=document.getElementById('monitor'+i);if(el)el.innerHTML=renderMonitor(i);});
+  buildLeague(); renderCompare();
+}
+
+buildSlides();
+buildLeague();
+renderCompare();
+updateStageCopy(0);
+loadDesk();
+setInterval(loadDesk,30000);
 </script>
 </body>
 </html>
