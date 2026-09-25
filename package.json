@@ -12,6 +12,7 @@
     "openai": "^5.20.0"
   },
   "scripts": {
-    "wallets": "node scripts/generate-agent-wallets.mjs"
+    "wallets": "node scripts/generate-agent-wallets.mjs",
+    "start": "node backend/server.js"
   }
 }
