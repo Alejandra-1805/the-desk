@@ -45,8 +45,11 @@ async function check(){
   document.getElementById('status').textContent=JSON.stringify(x,null,2);
 }
 async function preflight(){
+  const result=document.getElementById('result');
+  result.textContent='Refreshing BULL decision and checking Jupiter route...';
   const x=await j('/api/live-preflight');
-  document.getElementById('result').textContent=JSON.stringify(x,null,2);
+  if(x?.token?.mint) document.getElementById('mint').value=x.token.mint;
+  result.textContent=JSON.stringify(x,null,2);
 }
 async function buy(){
   const ok=confirm('This will submit a REAL Solana swap from BULL for up to 0.002 SOL. Continue?');
