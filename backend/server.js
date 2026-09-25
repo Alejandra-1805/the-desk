@@ -130,3 +130,5 @@ server.listen(PORT,"0.0.0.0",()=>{
   console.log("MARKET AGENTS bot listening on",PORT);
   if(AUTOMATION_ENABLED){setTimeout(runSafe,15000);setInterval(runSafe,SCAN_INTERVAL_MS);}
 });
+
+// railway-refresh-2026-09-25
