@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MARKET AGENTS — Live Test Control</title>
+<style>
+body{font-family:Inter,Arial,sans-serif;background:#10110f;color:#f4f3eb;margin:0;padding:40px;max-width:900px;margin:auto}
+h1{font-size:48px;margin:0 0 8px}.muted{color:#a6a89f}.card{border:1px solid #34362f;border-radius:18px;padding:20px;margin-top:18px;background:#171814}
+label{display:block;margin:14px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#b9bbb2}
+input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #3d4037;background:#0d0e0c;color:#fff}
+button{margin-top:14px;padding:12px 18px;border-radius:999px;border:0;font-weight:800;cursor:pointer}
+.primary{background:#76ff7a}.danger{background:#ff725e}.secondary{background:#e8e7df}
+pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;border-radius:12px;min-height:80px}
+.bad{color:#ff8b7c}.good{color:#7dff86}
+</style>
+</head>
+<body>
+<h1>MARKET AGENTS</h1>
+<div class="muted">$MAGENTS · controlled BULL test console</div>
+
+<div class="card">
+  <h2>1. Readiness</h2>
+  <button class="secondary" onclick="check()">Check system</button>
+  <pre id="status">Not checked yet.</pre>
+</div>
+
+<div class="card">
+  <h2>2. BULL live test</h2>
+  <p class="muted">This page never stores your RUN_SECRET. It sends it only in the request header to your own Vercel API.</p>
+  <label>RUN_SECRET</label>
+  <input id="secret" type="password" autocomplete="off" placeholder="Paste the RUN_SECRET you created in Vercel">
+  <label>Token mint</label>
+  <input id="mint" value="7GUnr7krtQhJwd6ASY2VUprd9t4c64zcgCsjdmZepump">
+  <label>Amount SOL</label>
+  <input id="amount" value="0.002" readonly>
+  <button class="secondary" onclick="preflight()">Preview route</button>
+  <button class="danger" onclick="buy()">Execute 0.002 SOL BUY</button>
+  <pre id="result">No action executed.</pre>
+</div>
+
+<script>
+async function j(url,opts){const r=await fetch(url,opts);let x;try{x=await r.json()}catch{x={error:'Non-JSON response'}};return {status:r.status,...x}}
+async function check(){
+  const x=await j('/api/readiness');
+  document.getElementById('status').textContent=JSON.stringify(x,null,2);
+}
+async function preflight(){
+  const x=await j('/api/live-preflight');
+  document.getElementById('result').textContent=JSON.stringify(x,null,2);
+}
+async function buy(){
+  const ok=confirm('This will submit a REAL Solana swap from BULL for up to 0.002 SOL. Continue?');
+  if(!ok)return;
+  const secret=document.getElementById('secret').value.trim();
+  const mint=document.getElementById('mint').value.trim();
+  if(!secret){alert('Paste RUN_SECRET first.');return;}
+  const x=await j('/api/execute',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-run-secret':secret},
+    body:JSON.stringify({agent_id:'bull',mint,amount_sol:0.002})
+  });
+  document.getElementById('result').textContent=JSON.stringify(x,null,2);
+}
+check();
+</script>
+</body>
+</html>
