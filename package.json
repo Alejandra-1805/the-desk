@@ -14,5 +14,8 @@
   },
   "scripts": {
     "wallets": "node scripts/generate-agent-wallets.mjs"
+  },
+  "overrides": {
+    "uuid": "^9.0.1"
   }
 }
