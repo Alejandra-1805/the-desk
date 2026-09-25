@@ -3,11 +3,16 @@
   "version": "0.7.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
     "@supabase/supabase-js": "^2.57.4",
     "bs58": "^6.0.0",
     "openai": "^5.20.0"
+  },
+  "scripts": {
+    "wallets": "node scripts/generate-agent-wallets.mjs"
   }
 }
