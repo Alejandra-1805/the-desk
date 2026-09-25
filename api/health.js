@@ -2,7 +2,7 @@ export default async function handler(req,res){
   if(req.method!=="GET") return res.status(405).json({ok:false,error:"Method not allowed"});
   return res.status(200).json({
     ok:true,
-    service:"the-desk-solana",
+    service:"market-agents-solana",
     trading_mode:(process.env.TRADING_MODE||"paper").toLowerCase(),
     live_trading_enabled:process.env.LIVE_TRADING_ENABLED==="true",
     helius_configured:Boolean(process.env.HELIUS_API_KEY),
