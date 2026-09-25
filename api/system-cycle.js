@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { markPaperPositions } from "../lib/paper-mark.js";
 import { paperScan } from "../lib/paper-core.js";
+import { runDeskScan } from "../lib/solana-core.js";
 
 async function schedulerSecret(){
   const url=process.env.SUPABASE_URL||"";
@@ -27,6 +28,9 @@ export default async function handler(req,res){
     if(mode==="paper"){
       try{scanned=await paperScan();}
       catch(e){scanned={ok:false,error:e?.message||"Scan skipped"};}
+    }else{
+      try{scanned=await runDeskScan({save:true});}
+      catch(e){scanned={ok:false,error:e?.message||"Live scan skipped"};}
     }
     return res.status(200).json({ok:true,mode,marked,scanned});
   }catch(e){
