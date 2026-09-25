@@ -1,85 +1,83 @@
 # THE DESK — Solana AI Agent Competition
 
-Current architecture:
+THE DESK is a public Solana agent league. BULL, DEGEN, QUANT and BEAR evaluate the same opportunity set with different strategies, record decisions, and build a measurable track record.
 
-- Vercel: static frontend + serverless API
-- Supabase: agent state, events, positions, fee events, generations
-- Helius: Solana RPC / wallet activity
-- Jupiter: token discovery, pricing and swap execution
-- OpenAI: structured agent decisions
-- Solscan: public verification links
+## Current production architecture
 
-## Safety model
+- Vercel — frontend + APIs
+- Supabase — agent state, events, paper positions, fee ledger, generations
+- Helius — Solana RPC and creator-fee webhook source
+- Jupiter — token discovery, pricing, route preview and later execution
+- OpenAI — structured agent decisions
+- Solscan — public verification links
 
-The repository defaults to `TRADING_MODE=paper`.
-Real swaps require **both**:
+## Current safety state
 
-- `TRADING_MODE=live`
-- `LIVE_TRADING_ENABLED=true`
-
-The execution layer also caps each agent by `MAX_TRADE_SOL` and re-checks the token against deterministic filters before signing.
-
-## Vercel environment variables
-
-Required for paper-mode agent scans:
+Production is intentionally configured as:
 
 ```
-SUPABASE_URL=https://qtflxpkdbkgfrugvabuy.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<set directly in Vercel>
-HELIUS_API_KEY=<your Helius key>
-JUPITER_API_KEY=<your Jupiter Developer Platform key>
-OPENAI_API_KEY=<your OpenAI API key>
-RUN_SECRET=<long random private string>
-CRON_SECRET=<different long random private string>
 TRADING_MODE=paper
 LIVE_TRADING_ENABLED=false
-MAX_TRADE_SOL=0.05
+MAX_TRADE_SOL=0.002
+LIVE_AGENT_ALLOWLIST=bull
 ```
 
-Wallet variables, after generating wallets:
+No real swap should be enabled until the controlled BULL test is completed.
+
+## Public/read-only endpoints
+
+- `GET /api/health`
+- `GET /api/agents`
+- `GET /api/opportunities`
+- `GET /api/leaderboard`
+- `GET /api/paper-mark`
+- `GET /api/paper-scan`
+- `GET /api/wallet-check`
+- `GET /api/live-preflight`
+- `GET /api/launch-readiness`
+- `GET /api/fee-status`
+
+## Protected/internal endpoints
+
+- `POST /api/scan` — RUN_SECRET
+- `POST /api/execute` — RUN_SECRET; also requires live mode
+- `GET /api/system-cycle` — CRON_SECRET via Authorization Bearer
+- `POST /api/helius-fees?secret=...` — HELIUS_WEBHOOK_SECRET
+
+## Paper competition
+
+A BUY decision creates a paper position with the verified Jupiter reference price. `paper-mark` updates P&L using Jupiter pricing and closes positions according to each strategy's rules. The leaderboard ranks agents from stored outcomes rather than fabricated results.
+
+## Creator-fee / generation model
+
+The fee pipeline is already scaffolded.
+
+Default target:
 
 ```
-AGENT_BULL_WALLET=
-AGENT_BULL_SECRET_KEY=
-AGENT_DEGEN_WALLET=
-AGENT_DEGEN_SECRET_KEY=
-AGENT_QUANT_WALLET=
-AGENT_QUANT_SECRET_KEY=
-AGENT_BEAR_WALLET=
-AGENT_BEAR_SECRET_KEY=
+SPAWN_THRESHOLD_USD=10
+SPAWN_TOKEN_BUY_SHARE=0.5
+SPAWN_BANKROLL_SHARE=0.5
 ```
 
-**Never commit agent secret keys. Never paste them into chat.**
+After launch, Helius can POST creator-fee transfers into `/api/helius-fees`. The database tracks verified transfers and `/api/fee-status` reports progress toward the next agent generation.
 
-## Generate four wallets locally
+Three launch-only values remain intentionally blank until the token exists:
 
-```bash
-npm install
-npm run wallets
+```
+PROJECT_TOKEN_MINT=
+CREATOR_FEE_WALLET=
+HELIUS_WEBHOOK_SECRET=
 ```
 
-This creates `.env.agent-wallets.local` on your own computer and prints only the public addresses in the terminal.
+## Before live launch
 
-## API
+1. Finish paper evaluation.
+2. Perform one controlled BULL trade.
+3. Verify transaction and exit path.
+4. Create the project token and dedicated creator-fee wallet.
+5. Configure the Helius webhook.
+6. Add project domain.
+7. Only then enable the intended live agents.
 
-- `GET /api/health` — configuration status
-- `GET /api/agents` — wallets, balances, latest verified activity
-- `GET /api/opportunities` — current Jupiter-filtered candidates
-- `GET /api/leaderboard` — competition standings
-- `POST /api/scan` — run all four AI agents; protected by `RUN_SECRET`
-- `POST /api/execute` — live BUY execution; disabled unless live trading is explicitly enabled
-- `GET /api/cron` — scheduled agent scan; protected by `CRON_SECRET`
-
-## Fee / generation model
-
-Supabase already contains tables for creator fee events and future agent spawns.
-Default configuration is stored as:
-
-- spawn threshold: USD 10
-- token-buy share: 50%
-- agent-bankroll share: 50%
-
-These values are configuration only; fee collection and token launch are not activated yet.
-
-
-<!-- env-refresh: 2026-09-24 -->
+Never commit private keys or paste them into chat.
