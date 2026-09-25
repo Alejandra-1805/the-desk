@@ -39,9 +39,10 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;b
 </div>
 
 <div class="card">
-  <h2>3. Automated signals</h2>
-  <p class="muted">Shows the latest BUY/SELL intents produced by the agents. Loading them requires the same RUN_SECRET.</p>
+  <h2>3. SELL approvals</h2>
+  <p class="muted">When TP / SL / MAX_HOLD is triggered, the SELL appears here. Click Approve SELL to authorize that signal.</p>
   <button class="secondary" onclick="loadSignals()">Refresh signals</button>
+  <div id="sellCards" style="margin-top:12px"></div>
   <pre id="signals">No signals loaded.</pre>
 </div>
 
@@ -63,6 +64,35 @@ async function loadSignals(){
   if(!secret){alert('Paste RUN_SECRET first.');return;}
   const x=await j('/api/trade-intents',{headers:{'x-run-secret':secret}});
   document.getElementById('signals').textContent=JSON.stringify(x,null,2);
+  const box=document.getElementById('sellCards');
+  const sells=(x.intents||[]).filter(v=>v.action==='SELL' && (v.status==='PENDING'||v.status==='APPROVED'));
+  if(!sells.length){
+    box.innerHTML='<div class="muted">No pending SELL signal right now.</div>';
+    return;
+  }
+  box.innerHTML=sells.map(v=>{
+    const pnl=v.payload?.pnl_pct;
+    const reason=v.reason||v.payload?.exit_reason||'SELL';
+    const disabled=v.status!=='PENDING'?'disabled':'';
+    const label=v.status==='APPROVED'?'SELL APPROVED':'Approve SELL';
+    return '<div style="border:1px solid #34362f;border-radius:12px;padding:14px;margin:10px 0">'+
+      '<b>'+v.agent_id.toUpperCase()+' · '+(v.token_symbol||v.token_mint)+'</b><br>'+
+      '<span class="muted">'+reason+(pnl!=null?' · P&L '+Number(pnl).toFixed(2)+'%':'')+'</span><br>'+
+      '<button class="danger" '+disabled+' onclick="approveSell('+v.id+')">'+label+'</button>'+
+    '</div>';
+  }).join('');
+}
+async function approveSell(id){
+  const secret=document.getElementById('secret').value.trim();
+  if(!secret){alert('Paste RUN_SECRET first.');return;}
+  if(!confirm('Approve this SELL signal?')) return;
+  const x=await j('/api/approve-intent',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-run-secret':secret},
+    body:JSON.stringify({intent_id:id})
+  });
+  document.getElementById('signals').textContent=JSON.stringify(x,null,2);
+  await loadSignals();
 }
 async function buy(){
   const ok=confirm('This will submit a REAL Solana swap from BULL for up to 0.002 SOL. Continue?');
