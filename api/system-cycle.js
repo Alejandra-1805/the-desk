@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { markPaperPositions } from "../lib/paper-mark.js";
 import { paperScan } from "../lib/paper-core.js";
 import { runDeskScan } from "../lib/solana-core.js";
+import { monitorLivePositions } from "../lib/live-monitor.js";
 
 async function schedulerSecret(){
   const url=process.env.SUPABASE_URL||"";
@@ -67,8 +68,9 @@ export default async function handler(req,res){
       try{scanned=await runDeskScan({save:true});}
       catch(e){scanned={ok:false,error:e?.message||"Live scan skipped"};}
     }
+    const liveMonitor=mode==="live"?await monitorLivePositions():null;
     const intents=mode==="live"?await queueLiveIntents():{queued:0};
-    return res.status(200).json({ok:true,mode,marked,scanned,intents});
+    return res.status(200).json({ok:true,mode,marked,scanned,live_monitor:liveMonitor,intents});
   }catch(e){
     return res.status(503).json({ok:false,error:e?.message||"System cycle failed"});
   }
