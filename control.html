@@ -35,6 +35,7 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;b
   <input id="amount" value="0.002" readonly>
   <button class="secondary" onclick="preflight()">Preview route</button>
   <button class="danger" onclick="buy()">Execute 0.002 SOL BUY</button>
+  <button class="danger" onclick="sellBull()">SELL ALL BULL TOKEN</button>
   <pre id="result">No action executed.</pre>
 </div>
 
@@ -93,6 +94,20 @@ async function approveSell(id){
   });
   document.getElementById('signals').textContent=JSON.stringify(x,null,2);
   await loadSignals();
+}
+async function sellBull(){
+  const secret=document.getElementById('secret').value.trim();
+  const mint=document.getElementById('mint').value.trim();
+  if(!secret){alert('Paste RUN_SECRET first.');return;}
+  if(!mint){alert('Enter the token mint to sell.');return;}
+  const ok=confirm('This will submit a REAL Solana SELL from BULL for the entire balance of this token. Continue?');
+  if(!ok)return;
+  const x=await j('/api/execute',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-run-secret':secret},
+    body:JSON.stringify({action:'sell',agent_id:'bull',mint})
+  });
+  document.getElementById('result').textContent=JSON.stringify(x,null,2);
 }
 async function buy(){
   const ok=confirm('This will submit a REAL Solana swap from BULL for up to 0.002 SOL. Continue?');
