@@ -19,8 +19,9 @@ export default async function handler(req,res){
       supabase.from("agents").select("*"),
       supabase.from("agent_events").select("*").order("created_at",{ascending:false}).limit(100),
       supabase.from("agent_events")
-        .select("agent_id,event_type,token_mint,token_symbol,decision,tx_signature,created_at")
-        .not("tx_signature","is",null)
+        .select("agent_id,event_type,token_mint,token_symbol,decision,tx_signature,tx_hash,chain_id,created_at")
+        .eq("chain_id",4663)
+        .or("tx_hash.not.is.null,tx_signature.not.is.null")
         .order("created_at",{ascending:false})
         .limit(100),
       supabase.from("paper_positions").select("*").order("opened_at",{ascending:false}),
@@ -37,7 +38,7 @@ export default async function handler(req,res){
     for(const e of txEvents||[]){
       if(!txByAgent.has(e.agent_id)) txByAgent.set(e.agent_id,[]);
       txByAgent.get(e.agent_id).push({
-        signature:e.tx_signature,
+        signature:e.tx_hash||e.tx_signature,
         err:null,
         confirmationStatus:"confirmed",
         eventType:e.event_type,
@@ -71,13 +72,17 @@ export default async function handler(req,res){
       const liveOpen=livePs.filter(p=>p.status==="OPEN");
       const liveClosed=livePs.filter(p=>p.status==="CLOSED");
       const lastTx=(txByAgent.get(c.id)||[])[0]||null;
-      const liveRealizedSol=liveClosed.reduce((s,p)=>s+Number(p.realized_pnl_sol||0),0);
+      const liveRealizedEth=liveClosed.filter(p=>Number(p.chain_id)===4663).reduce((s,p)=>s+Number(p.realized_pnl_eth||0),0);
+      const liveRealizedSol=liveClosed.filter(p=>Number(p.chain_id)!==4663).reduce((s,p)=>s+Number(p.realized_pnl_sol||0),0);
       return {
         ...c,
         wallet,
         balanceEth,
         balanceSol:balanceEth,
         generation:Number(row.generation||0),
+        bankrollEth:Number(row.bankroll_eth||0),
+        realizedPnlEth:Number(row.realized_pnl_eth||0),
+        unrealizedPnlEth:Number(row.unrealized_pnl_eth||0),
         bankrollSol:Number(row.bankroll_sol||0),
         realizedPnlSol:Number(row.realized_pnl_sol||0),
         unrealizedPnlSol:Number(row.unrealized_pnl_sol||0),
@@ -89,6 +94,7 @@ export default async function handler(req,res){
         status:liveOpen.length?"LIVE POSITION":(wallet?"WALLET READY":"PAPER READY"),
         openPositions:liveOpen.length,
         paperOpenPositions:open.length,
+        liveRealizedPnlEth:Number(liveRealizedEth.toFixed(8)),
         liveRealizedPnlSol:Number(liveRealizedSol.toFixed(8)),
         latestPosition:liveOpen[0]||livePs[0]||null,
         latestEvent:latest.get(c.id)||null,
