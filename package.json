@@ -1,6 +1,6 @@
 {
-  "name": "the-desk",
-  "version": "0.7.0",
+  "name": "muse-agents",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -9,7 +9,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "bs58": "^6.0.0",
-    "openai": "^5.20.0"
+    "openai": "^5.20.0",
+    "ethers": "^6.15.0"
   },
   "scripts": {
     "wallets": "node scripts/generate-agent-wallets.mjs",
