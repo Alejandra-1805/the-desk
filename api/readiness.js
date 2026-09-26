@@ -7,10 +7,10 @@ export default async function handler(req,res){
     const required=[
       "SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","ALCHEMY_RPC_URL",
       "OPENAI_API_KEY","RUN_SECRET","CRON_SECRET",
-      "AGENT_BULL_EVM_WALLET","AGENT_BULL_EVM_SECRET_KEY",
-      "AGENT_DEGEN_EVM_WALLET","AGENT_DEGEN_EVM_SECRET_KEY",
-      "AGENT_QUANT_EVM_WALLET","AGENT_QUANT_EVM_SECRET_KEY",
-      "AGENT_BEAR_EVM_WALLET","AGENT_BEAR_EVM_SECRET_KEY"
+      "AGENT_BULL_EVM_SECRET_KEY",
+      "AGENT_DEGEN_EVM_SECRET_KEY",
+      "AGENT_QUANT_EVM_SECRET_KEY",
+      "AGENT_BEAR_EVM_SECRET_KEY"
     ];
     const missing=required.filter(k=>!process.env[k]);
 
