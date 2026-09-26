@@ -36,7 +36,23 @@ export default async function handler(req,res){
     if(eerr) throw eerr;
     if(perr) throw perr;
     const latest=new Map();
-    for(const e of events||[]) if(!latest.has(e.agent_id)) latest.set(e.agent_id,e);
+    const txByAgent=new Map();
+    for(const e of events||[]){
+      if(!latest.has(e.agent_id)) latest.set(e.agent_id,e);
+      if(e.tx_signature){
+        if(!txByAgent.has(e.agent_id)) txByAgent.set(e.agent_id,[]);
+        txByAgent.get(e.agent_id).push({
+          signature:e.tx_signature,
+          err:null,
+          confirmationStatus:"confirmed",
+          eventType:e.event_type,
+          decision:e.decision,
+          tokenSymbol:e.token_symbol,
+          tokenMint:e.token_mint,
+          createdAt:e.created_at
+        });
+      }
+    }
     const byId=new Map((agents||[]).map(x=>[x.id,x]));
     const byAgentPositions=new Map();
     for(const p of positions||[]){
@@ -69,7 +85,7 @@ export default async function handler(req,res){
         openPositions:open.length,
         latestPosition:open[0]||ps[0]||null,
         latestEvent:latest.get(c.id)||null,
-        recentTransactions:[]
+        recentTransactions:(txByAgent.get(c.id)||[]).slice(0,8)
       };
     }));
     return res.status(200).json({ok:true,data});
