@@ -62,7 +62,7 @@ async function preflight(){
 async function loadSignals(){
   const secret=document.getElementById('secret').value.trim();
   if(!secret){alert('Paste RUN_SECRET first.');return;}
-  const x=await j('/api/trade-intents',{headers:{'x-run-secret':secret}});
+  const x=await j('/api/execute',{headers:{'x-run-secret':secret}});
   document.getElementById('signals').textContent=JSON.stringify(x,null,2);
   const box=document.getElementById('sellCards');
   const sells=(x.intents||[]).filter(v=>v.action==='SELL' && (v.status==='PENDING'||v.status==='APPROVED'));
@@ -86,10 +86,10 @@ async function approveSell(id){
   const secret=document.getElementById('secret').value.trim();
   if(!secret){alert('Paste RUN_SECRET first.');return;}
   if(!confirm('Approve this SELL signal?')) return;
-  const x=await j('/api/approve-intent',{
+  const x=await j('/api/execute',{
     method:'POST',
     headers:{'content-type':'application/json','x-run-secret':secret},
-    body:JSON.stringify({intent_id:id})
+    body:JSON.stringify({action:'approve-sell',intent_id:id})
   });
   document.getElementById('signals').textContent=JSON.stringify(x,null,2);
   await loadSignals();
