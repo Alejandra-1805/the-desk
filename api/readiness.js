@@ -1,83 +1,64 @@
 import { createClient } from "@supabase/supabase-js";
-
-async function ensureHeliusWebhook({feeWallet,authSecret}){
-  const apiKey=process.env.HELIUS_API_KEY||"";
-  if(!apiKey||!feeWallet||!authSecret) return {configured:false};
-  const webhookURL="https://the-desk-zeta-liart.vercel.app/api/helius-fees";
-  const endpoint="https://api.helius.xyz/v0/webhooks?api-key="+encodeURIComponent(apiKey);
-  try{
-    const listRes=await fetch(endpoint,{headers:{accept:"application/json"},cache:"no-store"});
-    const listJson=listRes.ok?await listRes.json():[];
-    const rows=Array.isArray(listJson)?listJson:(listJson?.data||listJson?.webhooks||[]);
-    const existing=(rows||[]).find(w=>{
-      const addresses=w.accountAddresses||w.account_addresses||[];
-      const url=w.webhookURL||w.webhookUrl||w.webhook_url||"";
-      return url===webhookURL && addresses.includes(feeWallet);
-    });
-    if(existing) return {configured:true,created:false};
-    const createRes=await fetch(endpoint,{
-      method:"POST",
-      headers:{"content-type":"application/json",accept:"application/json"},
-      body:JSON.stringify({
-        webhookURL,
-        transactionTypes:["ANY"],
-        accountAddresses:[feeWallet],
-        webhookType:"enhanced",
-        authHeader:authSecret
-      })
-    });
-    return {configured:createRes.ok,created:createRes.ok};
-  }catch{return {configured:false,created:false};}
-}
-
+import { getChainStatus } from "../lib/evm-core.js";
 
 export default async function handler(req,res){
   if(req.method!=="GET") return res.status(405).json({ok:false,error:"Method not allowed"});
   try{
     const required=[
-      "SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","HELIUS_API_KEY","JUPITER_API_KEY",
+      "SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","ALCHEMY_RPC_URL",
       "OPENAI_API_KEY","RUN_SECRET","CRON_SECRET",
-      "AGENT_BULL_WALLET","AGENT_BULL_SECRET_KEY",
-      "AGENT_DEGEN_WALLET","AGENT_DEGEN_SECRET_KEY",
-      "AGENT_QUANT_WALLET","AGENT_QUANT_SECRET_KEY",
-      "AGENT_BEAR_WALLET","AGENT_BEAR_SECRET_KEY"
+      "AGENT_BULL_EVM_WALLET","AGENT_BULL_EVM_SECRET_KEY",
+      "AGENT_DEGEN_EVM_WALLET","AGENT_DEGEN_EVM_SECRET_KEY",
+      "AGENT_QUANT_EVM_WALLET","AGENT_QUANT_EVM_SECRET_KEY",
+      "AGENT_BEAR_EVM_WALLET","AGENT_BEAR_EVM_SECRET_KEY"
     ];
     const missing=required.filter(k=>!process.env[k]);
-    let feeWallet=process.env.CREATOR_FEE_WALLET||null;
-    let projectMint=process.env.PROJECT_TOKEN_MINT||null;
+
+    let projectToken=process.env.PROJECT_TOKEN_ADDRESS||null;
+    let creatorFeeWallet=process.env.CREATOR_FEE_EVM_WALLET||null;
+    let botPaused=true;
+
     if(process.env.SUPABASE_URL&&process.env.SUPABASE_SERVICE_ROLE_KEY){
       const supabase=createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-      const {data}=await supabase.from("system_state").select("key,value").in("key",["creator_fee_wallet","project_token_mint","scheduler_secret"]);
-      let schedulerSecret="";
+      const {data}=await supabase.from("system_state").select("key,value").in("key",[
+        "project_token_address","creator_fee_evm_wallet","bot_paused"
+      ]);
       for(const row of data||[]){
-        if(row.key==="creator_fee_wallet"&&!feeWallet) feeWallet=typeof row.value==="string"?row.value:row.value?.value||row.value;
-        if(row.key==="project_token_mint"&&!projectMint) projectMint=typeof row.value==="string"?row.value:row.value?.value||row.value;
-        if(row.key==="scheduler_secret") schedulerSecret=typeof row.value==="string"?row.value:row.value?.value||row.value||"";
+        const v=typeof row.value==="string"?row.value:(row.value?.value??row.value);
+        if(row.key==="project_token_address"&&!projectToken) projectToken=v||null;
+        if(row.key==="creator_fee_evm_wallet"&&!creatorFeeWallet) creatorFeeWallet=v||null;
+        if(row.key==="bot_paused") botPaused=(v===true||v==="true");
       }
     }
-    const webhook=await ensureHeliusWebhook({feeWallet,authSecret:typeof schedulerSecret!=="undefined"?schedulerSecret:""});
+
+    let chainStatus=null;
+    try{ if(process.env.ALCHEMY_RPC_URL) chainStatus=await getChainStatus(); }catch{}
+
     const launchMissing=[];
-    if(!projectMint) launchMissing.push("PROJECT_TOKEN_MINT");
-    if(!feeWallet) launchMissing.push("CREATOR_FEE_WALLET");
-    if(!webhook.configured) launchMissing.push("HELIUS_WEBHOOK");
+    if(!projectToken) launchMissing.push("PROJECT_TOKEN_ADDRESS");
+    if(!creatorFeeWallet) launchMissing.push("CREATOR_FEE_EVM_WALLET");
+    if(!process.env.UNISWAP_API_KEY) launchMissing.push("UNISWAP_API_KEY");
 
     return res.status(200).json({
       ok:true,
+      project:"MUSE AGENTS",
+      chain:"Robinhood Chain",
+      chain_id:4663,
+      explorer:"https://robinhoodchain.blockscout.com",
       infrastructure_ready:missing.length===0,
+      chain_connected:Boolean(chainStatus&&chainStatus.chainId===4663),
+      chain_status:chainStatus,
+      bot_paused:botPaused,
       current_mode:(process.env.TRADING_MODE||"paper").toLowerCase(),
       live_trading_enabled:process.env.LIVE_TRADING_ENABLED==="true",
       auto_execution_requested:process.env.AUTO_EXECUTION_ENABLED==="true",
       auto_sell_requested:process.env.AUTO_SELL_ENABLED==="true",
-      unattended_execution_enabled:false,
-      execution_policy:"manual_confirmation_required",
-      max_trade_sol:Math.min(Number(process.env.MAX_TRADE_SOL||"0.002"),0.002),
-      live_agent_allowlist:(process.env.LIVE_AGENT_ALLOWLIST||"bull").split(",").map(x=>x.trim()).filter(Boolean),
-      fee_wallet_configured:Boolean(feeWallet),
-      fee_wallet:feeWallet,
-      webhook_ready:Boolean(webhook.configured),
-      webhook_created:Boolean(webhook.created),
-      project_token_configured:Boolean(projectMint),
-      launch_ready:missing.length===0&&launchMissing.length===0,
+      evm_execution_ready:false,
+      execution_note:"Alchemy/EVM read layer is ready. Robinhood swap execution remains disabled until router integration is completed.",
+      project_token_configured:Boolean(projectToken),
+      project_token_address:projectToken,
+      creator_fee_wallet_configured:Boolean(creatorFeeWallet),
+      creator_fee_wallet:creatorFeeWallet,
       missing,
       launch_missing:launchMissing
     });
