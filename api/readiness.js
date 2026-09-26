@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { getChainStatus } from "../lib/evm-core.js";
+import { getChainStatus, verifyAgentSigner } from "../lib/evm-core.js";
 
 export default async function handler(req,res){
   if(req.method!=="GET") return res.status(405).json({ok:false,error:"Method not allowed"});
@@ -39,6 +39,10 @@ export default async function handler(req,res){
     if(!creatorFeeWallet) launchMissing.push("CREATOR_FEE_EVM_WALLET");
     if(!process.env.UNISWAP_API_KEY) launchMissing.push("UNISWAP_API_KEY");
 
+    const signerChecks=["bull","degen","quant","bear"].map(id=>({agent:id,...verifyAgentSigner(id)}));
+    const signerMismatch=signerChecks.filter(x=>x.configured&&!x.matches).map(x=>x.agent);
+    const signerMissing=signerChecks.filter(x=>!x.configured).map(x=>x.agent);
+
     return res.status(200).json({
       ok:true,
       project:"MUSE AGENTS",
@@ -53,6 +57,9 @@ export default async function handler(req,res){
       live_trading_enabled:process.env.LIVE_TRADING_ENABLED==="true",
       auto_execution_requested:process.env.AUTO_EXECUTION_ENABLED==="true",
       auto_sell_requested:process.env.AUTO_SELL_ENABLED==="true",
+      signer_checks:signerChecks,
+      signer_mismatch:signerMismatch,
+      signer_missing:signerMissing,
       evm_execution_ready:false,
       execution_note:"Alchemy/EVM read layer is ready. Robinhood swap execution remains disabled until router integration is completed.",
       project_token_configured:Boolean(projectToken),
