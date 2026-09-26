@@ -1,6 +1,38 @@
 import { createClient } from "@supabase/supabase-js";
 import { getChainStatus, verifyAgentSigner } from "../lib/evm-core.js";
 
+async function checkUniswapRobinhood(){
+  const apiKey=process.env.UNISWAP_API_KEY||"";
+  if(!apiKey) return {configured:false,connected:false,chain_supported:false};
+  try{
+    const r=await fetch("https://trade-api.gateway.uniswap.org/v1/supported_chains",{
+      headers:{
+        "x-api-key":apiKey,
+        "x-agent-info":JSON.stringify({decision_origin:"human_mediated",integration_name:"Muse Agents",version:"1.0"})
+      },
+      cache:"no-store"
+    });
+    const j=await r.json();
+    const chain=(j?.chains||[]).find(x=>Number(x.chainId)===4663);
+    return {
+      configured:true,
+      connected:r.ok,
+      chain_supported:Boolean(chain),
+      chain:chain?{
+        chainId:chain.chainId,
+        chainName:chain.chainName,
+        actions:chain.actions||[],
+        protocols:chain.protocols||[],
+        contractAddresses:chain.contractAddresses||[]
+      }:null,
+      requestId:j?.requestId||null,
+      error:r.ok?null:(j?.detail||j?.error||"Uniswap API check failed")
+    };
+  }catch(e){
+    return {configured:true,connected:false,chain_supported:false,error:e?.message||"Uniswap API check failed"};
+  }
+}
+
 export default async function handler(req,res){
   if(req.method!=="GET") return res.status(405).json({ok:false,error:"Method not allowed"});
   try{
@@ -33,11 +65,12 @@ export default async function handler(req,res){
 
     let chainStatus=null;
     try{ if(process.env.ALCHEMY_RPC_URL) chainStatus=await getChainStatus(); }catch{}
+    const uniswap=await checkUniswapRobinhood();
 
     const launchMissing=[];
     if(!projectToken) launchMissing.push("PROJECT_TOKEN_ADDRESS");
     if(!creatorFeeWallet) launchMissing.push("CREATOR_FEE_EVM_WALLET");
-    if(!process.env.UNISWAP_API_KEY) launchMissing.push("UNISWAP_API_KEY");
+    if(!uniswap.connected || !uniswap.chain_supported) launchMissing.push("UNISWAP_API_KEY");
 
     const signerChecks=["bull","degen","quant","bear"].map(id=>({agent:id,...verifyAgentSigner(id)}));
     const signerMismatch=signerChecks.filter(x=>x.configured&&!x.matches).map(x=>x.agent);
@@ -52,6 +85,9 @@ export default async function handler(req,res){
       infrastructure_ready:missing.length===0,
       chain_connected:Boolean(chainStatus&&chainStatus.chainId===4663),
       chain_status:chainStatus,
+      uniswap_connected:Boolean(uniswap.connected),
+      uniswap_robinhood_supported:Boolean(uniswap.chain_supported),
+      uniswap:uniswap,
       bot_paused:botPaused,
       current_mode:(process.env.TRADING_MODE||"paper").toLowerCase(),
       live_trading_enabled:process.env.LIVE_TRADING_ENABLED==="true",
