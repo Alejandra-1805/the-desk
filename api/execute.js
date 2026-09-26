@@ -6,6 +6,37 @@ function client(){
   return url&&key?createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}):null;
 }
 
+async function enforceExecutionLimits(agentId,requestedSol){
+  const supabase=client();
+  if(!supabase) throw new Error("Supabase not configured");
+  const maxDaily=Math.min(Number(process.env.MAX_DAILY_SOL||"0.01"),0.01);
+  const maxOpen=Math.min(Math.max(Number(process.env.MAX_OPEN_POSITIONS||"1"),1),2);
+  const dayStart=new Date(); dayStart.setUTCHours(0,0,0,0);
+
+  const [{data:events,error:eErr},{data:positions,error:pErr}] = await Promise.all([
+    supabase.from("agent_events")
+      .select("payload,created_at")
+      .eq("agent_id",agentId)
+      .eq("event_type","BUY_EXECUTED")
+      .gte("created_at",dayStart.toISOString()),
+    supabase.from("positions")
+      .select("id")
+      .eq("agent_id",agentId)
+      .eq("status","OPEN")
+  ]);
+  if(eErr) throw eErr;
+  if(pErr) throw pErr;
+
+  const used=(events||[]).reduce((s,e)=>s+Number(e.payload?.amount_sol||0),0);
+  if(used+Number(requestedSol||0) > maxDaily+1e-12){
+    throw new Error(`Daily execution limit reached for ${agentId}: ${used.toFixed(6)} / ${maxDaily.toFixed(6)} SOL`);
+  }
+  if((positions||[]).length>=maxOpen){
+    throw new Error(`Open-position limit reached for ${agentId}: ${positions.length} / ${maxOpen}`);
+  }
+  return {maxDailySol:maxDaily,maxOpenPositions:maxOpen,usedTodaySol:used,openPositions:(positions||[]).length};
+}
+
 export default async function handler(req,res){
   try{
     const mod=await import("../lib/solana-core.js");
@@ -51,8 +82,9 @@ export default async function handler(req,res){
       return res.status(200).json({ok:true,intent:data,note:"SELL approved. Approval does not broadcast a Solana transaction."});
     }
 
+    const limits=await enforceExecutionLimits(body.agent_id,body.amount_sol);
     const data=await mod.executeBuy({agentId:body.agent_id,mint:body.mint,amountSol:body.amount_sol});
-    return res.status(200).json({ok:true,data});
+    return res.status(200).json({ok:true,limits,data});
   }catch(e){
     return res.status(500).json({ok:false,error:e?.message||"Execute failed",name:e?.name||null,stage:"execute"});
   }
