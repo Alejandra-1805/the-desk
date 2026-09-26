@@ -27,7 +27,7 @@ export default async function handler(req,res){
     const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
     if(!url||!key) return res.status(503).json({ok:false,error:"Supabase is not configured"});
     const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
-    const [{data:agents,error:aerr},{data:events,error:eerr},{data:txEvents,error:txerr},{data:positions,error:perr}] = await Promise.all([
+    const [{data:agents,error:aerr},{data:events,error:eerr},{data:txEvents,error:txerr},{data:positions,error:perr},{data:livePositions,error:lperr}] = await Promise.all([
       supabase.from("agents").select("*"),
       supabase.from("agent_events").select("*").order("created_at",{ascending:false}).limit(100),
       supabase.from("agent_events")
@@ -35,12 +35,14 @@ export default async function handler(req,res){
         .not("tx_signature","is",null)
         .order("created_at",{ascending:false})
         .limit(100),
-      supabase.from("paper_positions").select("*").order("opened_at",{ascending:false})
+      supabase.from("paper_positions").select("*").order("opened_at",{ascending:false}),
+      supabase.from("positions").select("*").order("opened_at",{ascending:false})
     ]);
     if(aerr) throw aerr;
     if(eerr) throw eerr;
     if(txerr) throw txerr;
     if(perr) throw perr;
+    if(lperr) throw lperr;
     const latest=new Map();
     const txByAgent=new Map();
     for(const e of events||[]) if(!latest.has(e.agent_id)) latest.set(e.agent_id,e);
@@ -63,6 +65,11 @@ export default async function handler(req,res){
       if(!byAgentPositions.has(p.agent_id)) byAgentPositions.set(p.agent_id,[]);
       byAgentPositions.get(p.agent_id).push(p);
     }
+    const liveByAgent=new Map();
+    for(const p of livePositions||[]){
+      if(!liveByAgent.has(p.agent_id)) liveByAgent.set(p.agent_id,[]);
+      liveByAgent.get(p.agent_id).push(p);
+    }
     const data=await Promise.all(configs.map(async c=>{
       const row=byId.get(c.id)||{};
       const wallet=row.wallet_address||process.env["AGENT_"+c.id.toUpperCase()+"_WALLET"]||null;
@@ -72,6 +79,11 @@ export default async function handler(req,res){
       const realizedPct=closed.reduce((s,p)=>s+Number(p.realized_pct||0),0);
       const unrealizedPct=open.reduce((s,p)=>s+Number(p.unrealized_pct||0),0);
       const balanceSol=await heliusBalance(wallet);
+      const livePs=liveByAgent.get(c.id)||[];
+      const liveOpen=livePs.filter(p=>p.status==="OPEN");
+      const liveClosed=livePs.filter(p=>p.status==="CLOSED");
+      const lastTx=(txByAgent.get(c.id)||[])[0]||null;
+      const liveRealizedSol=liveClosed.reduce((s,p)=>s+Number(p.realized_pnl_sol||0),0);
       return {
         ...c,
         wallet,
@@ -85,10 +97,13 @@ export default async function handler(req,res){
         paperScorePct:Number((realizedPct+unrealizedPct).toFixed(4)),
         wins:closed.filter(p=>Number(p.realized_pct||0)>0).length,
         losses:closed.filter(p=>Number(p.realized_pct||0)<=0).length,
-        status:open.length?"PAPER POSITION":(wallet?"WALLET READY":"PAPER READY"),
-        openPositions:open.length,
-        latestPosition:open[0]||ps[0]||null,
+        status:liveOpen.length?"LIVE POSITION":(wallet?"WALLET READY":"PAPER READY"),
+        openPositions:liveOpen.length,
+        paperOpenPositions:open.length,
+        liveRealizedPnlSol:Number(liveRealizedSol.toFixed(8)),
+        latestPosition:liveOpen[0]||livePs[0]||null,
         latestEvent:latest.get(c.id)||null,
+        latestExecution:lastTx,
         recentTransactions:(txByAgent.get(c.id)||[]).slice(0,8)
       };
     }));
