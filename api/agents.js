@@ -1,17 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
-async function heliusBalance(address){
-  const key=process.env.HELIUS_API_KEY||"";
-  if(!key||!address) return null;
-  const r=await fetch("https://mainnet.helius-rpc.com/?api-key="+encodeURIComponent(key),{
-    method:"POST",
-    headers:{"content-type":"application/json"},
-    body:JSON.stringify({jsonrpc:"2.0",id:"agents",method:"getBalance",params:[address,{commitment:"confirmed"}]})
-  });
-  const j=await r.json();
-  if(!r.ok||j.error) return null;
-  return Number(j.result?.value||0)/1e9;
-}
+import { getNativeBalanceEth, walletForAgent } from "../lib/evm-core.js";
 
 const configs=[
   {id:"bull",name:"BULL",color:"blue",style:"trend continuation + bullish confirmation"},
@@ -72,13 +60,13 @@ export default async function handler(req,res){
     }
     const data=await Promise.all(configs.map(async c=>{
       const row=byId.get(c.id)||{};
-      const wallet=row.wallet_address||process.env["AGENT_"+c.id.toUpperCase()+"_WALLET"]||null;
+      const wallet=walletForAgent(c.id)||row.wallet_address||null;
       const ps=byAgentPositions.get(c.id)||[];
       const open=ps.filter(p=>p.status==="OPEN");
       const closed=ps.filter(p=>p.status==="CLOSED");
       const realizedPct=closed.reduce((s,p)=>s+Number(p.realized_pct||0),0);
       const unrealizedPct=open.reduce((s,p)=>s+Number(p.unrealized_pct||0),0);
-      const balanceSol=await heliusBalance(wallet);
+      const balanceEth=wallet?await getNativeBalanceEth(wallet):null;
       const livePs=liveByAgent.get(c.id)||[];
       const liveOpen=livePs.filter(p=>p.status==="OPEN");
       const liveClosed=livePs.filter(p=>p.status==="CLOSED");
@@ -87,7 +75,8 @@ export default async function handler(req,res){
       return {
         ...c,
         wallet,
-        balanceSol,
+        balanceEth,
+        balanceSol:balanceEth,
         generation:Number(row.generation||0),
         bankrollSol:Number(row.bankroll_sol||0),
         realizedPnlSol:Number(row.realized_pnl_sol||0),
