@@ -31,10 +31,17 @@ async function enforceAutoLimits(supabase,agentId,requestedSol){
   const maxDaily=Math.min(Number(process.env.MAX_DAILY_SOL||"0.01"),0.01);
   const maxOpen=Math.min(Math.max(Number(process.env.MAX_OPEN_POSITIONS||"1"),1),2);
   const dayStart=new Date(); dayStart.setUTCHours(0,0,0,0);
+  const {data:resetRow,error:resetErr}=await supabase.from("system_state")
+    .select("value").eq("key","execution_limit_reset_at").maybeSingle();
+  if(resetErr) throw resetErr;
+  const resetRaw=resetRow?.value;
+  const resetText=typeof resetRaw==="string"?resetRaw:(resetRaw?.value||null);
+  const resetAt=resetText?new Date(resetText):null;
+  const limitStart=(resetAt && !Number.isNaN(resetAt.getTime()) && resetAt>dayStart)?resetAt:dayStart;
   const [{data:events,error:eErr},{data:positions,error:pErr}]=await Promise.all([
     supabase.from("agent_events").select("payload,created_at")
       .eq("agent_id",agentId).eq("event_type","BUY_EXECUTED")
-      .gte("created_at",dayStart.toISOString()),
+      .gte("created_at",limitStart.toISOString()),
     supabase.from("positions").select("id").eq("agent_id",agentId).eq("status","OPEN")
   ]);
   if(eErr) throw eErr;
@@ -42,7 +49,7 @@ async function enforceAutoLimits(supabase,agentId,requestedSol){
   const used=(events||[]).reduce((s,e)=>s+Number(e.payload?.amount_sol||0),0);
   if(used+Number(requestedSol||0)>maxDaily+1e-12) throw new Error("Daily limit reached");
   if((positions||[]).length>=maxOpen) throw new Error("Open-position limit reached");
-  return {used,maxDaily,maxOpen};
+  return {used,maxDaily,maxOpen,limitWindowStart:limitStart.toISOString()};
 }
 
 async function executePendingIntents(){
