@@ -76,6 +76,7 @@ export default async function handler(req,res){
     return res.status(200).json({
       ok:true,
       project:"MUSE AGENTS",
+      build:"robinhood-dryrun-v1",
       chain:"Robinhood Chain",
       chain_id:4663,
       explorer:"https://robinhoodchain.blockscout.com",
