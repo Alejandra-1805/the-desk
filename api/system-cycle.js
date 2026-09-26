@@ -151,6 +151,22 @@ export default async function handler(req,res){
     return res.status(401).json({ok:false,error:"Unauthorized"});
   }
   try{
+    const chain=(process.env.EXECUTION_CHAIN||"robinhood").toLowerCase();
+    if(chain==="robinhood"){
+      const {paused}=await automationState();
+      return res.status(200).json({
+        ok:true,
+        chain:"robinhood",
+        chain_id:4663,
+        bot_paused:paused,
+        mode:"migration",
+        scanned:null,
+        live_monitor:null,
+        intents:{queued:0},
+        automation:{executed:0,skipped:0,paused:true},
+        note:"Solana/Jupiter execution is disabled during the Robinhood Chain migration."
+      });
+    }
     const mode=(process.env.TRADING_MODE||"paper").toLowerCase();
     let marked=null;
     try{marked=await markPaperPositions();}catch(e){marked={ok:false,error:e?.message||"Mark skipped"};}
