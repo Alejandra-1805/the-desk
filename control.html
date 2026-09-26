@@ -25,6 +25,15 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;b
 </div>
 
 <div class="card">
+  <h2>Bot control</h2>
+  <p class="muted">Autonomous execution can be paused instantly without removing wallet keys or redeploying.</p>
+  <div id="botState" class="muted">Load status with your RUN_SECRET.</div>
+  <button class="secondary" onclick="loadSignals()">Refresh bot status</button>
+  <button class="danger" onclick="pauseBot()">PAUSE BOT</button>
+  <button class="primary" onclick="resumeBot()">RESUME BOT</button>
+</div>
+
+<div class="card">
   <h2>2. BULL live test</h2>
   <p class="muted">This page never stores your RUN_SECRET. It sends it only in the request header to your own Vercel API.</p>
   <label>RUN_SECRET</label>
@@ -64,11 +73,32 @@ async function preflight(){
   if(x?.token?.mint) document.getElementById('mint').value=x.token.mint;
   result.textContent=JSON.stringify(x,null,2);
 }
+async function setBotPaused(paused){
+  const secret=document.getElementById('secret').value.trim();
+  if(!secret){alert('Paste RUN_SECRET first.');return;}
+  const action=paused?'pause-bot':'resume-bot';
+  if(!confirm(paused?'Pause all autonomous executions now?':'Resume autonomous executions now?')) return;
+  const x=await j('/api/execute',{
+    method:'POST',
+    headers:{'content-type':'application/json','x-run-secret':secret},
+    body:JSON.stringify({action})
+  });
+  document.getElementById('signals').textContent=JSON.stringify(x,null,2);
+  await loadSignals();
+}
+async function pauseBot(){return setBotPaused(true)}
+async function resumeBot(){return setBotPaused(false)}
+
 async function loadSignals(){
   const secret=document.getElementById('secret').value.trim();
   if(!secret){alert('Paste RUN_SECRET first.');return;}
   const x=await j('/api/execute',{headers:{'x-run-secret':secret}});
   document.getElementById('signals').textContent=JSON.stringify(x,null,2);
+  const bot=x.bot||{};
+  document.getElementById('botState').innerHTML=
+    '<b>'+(bot.paused?'PAUSED':'RUNNING')+'</b> · AUTO BUY '+(bot.auto_execution_enabled?'ON':'OFF')+
+    ' · AUTO SELL '+(bot.auto_sell_enabled?'ON':'OFF')+
+    ' · MAX TRADE '+(bot.max_trade_sol??'—')+' SOL · DAILY '+(bot.max_daily_sol??'—')+' SOL · OPEN '+(bot.max_open_positions??'—');
   const box=document.getElementById('sellCards');
   const sells=(x.intents||[]).filter(v=>v.action==='SELL' && (v.status==='PENDING'||v.status==='APPROVED'));
   if(!sells.length){
