@@ -38,11 +38,7 @@ export default async function handler(req,res){
   try{
     const required=[
       "SUPABASE_URL","SUPABASE_SERVICE_ROLE_KEY","ALCHEMY_RPC_URL",
-      "OPENAI_API_KEY","RUN_SECRET","CRON_SECRET",
-      "AGENT_BULL_EVM_SECRET_KEY",
-      "AGENT_DEGEN_EVM_SECRET_KEY",
-      "AGENT_QUANT_EVM_SECRET_KEY",
-      "AGENT_BEAR_EVM_SECRET_KEY"
+      "OPENAI_API_KEY","RUN_SECRET","CRON_SECRET"
     ];
     const missing=required.filter(k=>!process.env[k]);
 
@@ -75,6 +71,7 @@ export default async function handler(req,res){
     const signerChecks=["bull","degen","quant","bear"].map(id=>({agent:id,...verifyAgentSigner(id)}));
     const signerMismatch=signerChecks.filter(x=>x.configured&&!x.matches).map(x=>x.agent);
     const signerMissing=signerChecks.filter(x=>!x.configured).map(x=>x.agent);
+    const signerInvalid=signerChecks.filter(x=>x.error==="invalid_private_key_format").map(x=>x.agent);
 
     return res.status(200).json({
       ok:true,
@@ -82,7 +79,7 @@ export default async function handler(req,res){
       chain:"Robinhood Chain",
       chain_id:4663,
       explorer:"https://robinhoodchain.blockscout.com",
-      infrastructure_ready:missing.length===0,
+      infrastructure_ready:missing.length===0 && signerMissing.length===0 && signerMismatch.length===0,
       chain_connected:Boolean(chainStatus&&chainStatus.chainId===4663),
       chain_status:chainStatus,
       uniswap_connected:Boolean(uniswap.connected),
@@ -96,13 +93,14 @@ export default async function handler(req,res){
       signer_checks:signerChecks,
       signer_mismatch:signerMismatch,
       signer_missing:signerMissing,
+      signer_invalid_format:signerInvalid,
       evm_execution_ready:false,
       execution_note:"Alchemy/EVM read layer is ready. Robinhood swap execution remains disabled until router integration is completed.",
       project_token_configured:Boolean(projectToken),
       project_token_address:projectToken,
       creator_fee_wallet_configured:Boolean(creatorFeeWallet),
       creator_fee_wallet:creatorFeeWallet,
-      missing,
+      missing:[...missing,...signerMissing.map(id=>"AGENT_"+id.toUpperCase()+"_EVM_SECRET_KEY")],
       launch_missing:launchMissing
     });
   }catch(e){
