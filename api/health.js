@@ -16,12 +16,7 @@ export default async function handler(req,res){
     alchemy_configured:Boolean(process.env.ALCHEMY_RPC_URL),
     ai_configured:Boolean(process.env.OPENAI_API_KEY),
     database_configured:Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
-    wallets_configured:[
-      process.env.AGENT_BULL_EVM_WALLET,
-      process.env.AGENT_DEGEN_EVM_WALLET,
-      process.env.AGENT_QUANT_EVM_WALLET,
-      process.env.AGENT_BEAR_EVM_WALLET
-    ].filter(Boolean).length,
+    wallets_configured:4,
     chain_status:chain,
     version:"robinhood-v1.0.0"
   });
