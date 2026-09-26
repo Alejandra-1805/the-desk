@@ -35,13 +35,17 @@ pre{white-space:pre-wrap;word-break:break-word;background:#0b0c0a;padding:14px;b
   <input id="amount" value="0.002" readonly>
   <button class="secondary" onclick="preflight()">Preview route</button>
   <button class="danger" onclick="buy()">Execute 0.002 SOL BUY</button>
-  <button class="danger" onclick="sellBull()">SELL ALL BULL TOKEN</button>
+  <div style="margin-top:18px;padding-top:16px;border-top:1px solid #34362f">
+    <div style="font-weight:800;margin-bottom:6px">MANUAL EMERGENCY EXIT</div>
+    <div class="muted">Use this only when you want to close BULL yourself immediately. This ignores the bot's TP / SL / MAX_HOLD signal.</div>
+    <button class="danger" onclick="sellBull()">SELL ALL BULL TOKEN NOW</button>
+  </div>
   <pre id="result">No action executed.</pre>
 </div>
 
 <div class="card">
-  <h2>3. SELL approvals</h2>
-  <p class="muted">When TP / SL / MAX_HOLD is triggered, the SELL appears here. Click Approve SELL to authorize that signal.</p>
+  <h2>3. BOT SELL SIGNALS</h2>
+  <p class="muted">The bot checks positions automatically every cycle. When TP / SL / MAX_HOLD is triggered, its SELL request appears here. You only confirm the execution.</p>
   <button class="secondary" onclick="loadSignals()">Refresh signals</button>
   <div id="sellCards" style="margin-top:12px"></div>
   <pre id="signals">No signals loaded.</pre>
@@ -75,7 +79,7 @@ async function loadSignals(){
     const pnl=v.payload?.pnl_pct;
     const reason=v.reason||v.payload?.exit_reason||'SELL';
     const disabled=v.status!=='PENDING'?'disabled':'';
-    const label=v.status==='APPROVED'?'SELL APPROVED':'Approve SELL';
+    const label=v.status==='APPROVED'?'BOT SELL APPROVED':'CONFIRM BOT SELL';
     return '<div style="border:1px solid #34362f;border-radius:12px;padding:14px;margin:10px 0">'+
       '<b>'+v.agent_id.toUpperCase()+' · '+(v.token_symbol||v.token_mint)+'</b><br>'+
       '<span class="muted">'+reason+(pnl!=null?' · P&L '+Number(pnl).toFixed(2)+'%':'')+'</span><br>'+
