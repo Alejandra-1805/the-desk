@@ -46,15 +46,46 @@ export default async function handler(req,res){
     if(req.method==="GET"){
       const supabase=client();
       if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
-      const {data,error}=await supabase.from("trade_intents")
-        .select("id,agent_id,action,token_symbol,token_mint,amount_sol,reason,confidence,status,payload,created_at,expires_at")
-        .order("created_at",{ascending:false}).limit(25);
+      const [{data,error},{data:state,error:stateErr}]=await Promise.all([
+        supabase.from("trade_intents")
+          .select("id,agent_id,action,token_symbol,token_mint,amount_sol,reason,confidence,status,payload,created_at,expires_at")
+          .order("created_at",{ascending:false}).limit(25),
+        supabase.from("system_state").select("key,value").in("key",["bot_paused"])
+      ]);
       if(error) throw error;
-      return res.status(200).json({ok:true,intents:data||[]});
+      if(stateErr) throw stateErr;
+      const row=(state||[]).find(x=>x.key==="bot_paused");
+      const raw=row?.value;
+      const paused=raw===true || raw==="true" || raw?.value===true;
+      return res.status(200).json({
+        ok:true,
+        intents:data||[],
+        bot:{
+          paused,
+          auto_execution_enabled:process.env.AUTO_EXECUTION_ENABLED==="true",
+          auto_sell_enabled:process.env.AUTO_SELL_ENABLED==="true",
+          max_trade_sol:Number(process.env.MAX_TRADE_SOL||0.002),
+          max_daily_sol:Number(process.env.MAX_DAILY_SOL||0.01),
+          max_open_positions:Number(process.env.MAX_OPEN_POSITIONS||1)
+        }
+      });
     }
 
     if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
     const body=typeof req.body==="string"?JSON.parse(req.body):req.body||{};
+
+    if(body.action==="pause-bot" || body.action==="resume-bot"){
+      const supabase=client();
+      if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
+      const paused=body.action==="pause-bot";
+      const {error}=await supabase.from("system_state").upsert({
+        key:"bot_paused",
+        value:paused,
+        updated_at:new Date().toISOString()
+      },{onConflict:"key"});
+      if(error) throw error;
+      return res.status(200).json({ok:true,bot_paused:paused});
+    }
 
     if(body.action==="sell"){
       const data=await mod.executeSell({agentId:body.agent_id,mint:body.mint});
