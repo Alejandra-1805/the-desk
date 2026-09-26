@@ -12,13 +12,20 @@ async function enforceExecutionLimits(agentId,requestedSol){
   const maxDaily=Math.min(Number(process.env.MAX_DAILY_SOL||"0.01"),0.01);
   const maxOpen=Math.min(Math.max(Number(process.env.MAX_OPEN_POSITIONS||"1"),1),2);
   const dayStart=new Date(); dayStart.setUTCHours(0,0,0,0);
+  const {data:resetRow,error:resetErr}=await supabase.from("system_state")
+    .select("value").eq("key","execution_limit_reset_at").maybeSingle();
+  if(resetErr) throw resetErr;
+  const resetRaw=resetRow?.value;
+  const resetText=typeof resetRaw==="string"?resetRaw:(resetRaw?.value||null);
+  const resetAt=resetText?new Date(resetText):null;
+  const limitStart=(resetAt && !Number.isNaN(resetAt.getTime()) && resetAt>dayStart)?resetAt:dayStart;
 
   const [{data:events,error:eErr},{data:positions,error:pErr}] = await Promise.all([
     supabase.from("agent_events")
       .select("payload,created_at")
       .eq("agent_id",agentId)
       .eq("event_type","BUY_EXECUTED")
-      .gte("created_at",dayStart.toISOString()),
+      .gte("created_at",limitStart.toISOString()),
     supabase.from("positions")
       .select("id")
       .eq("agent_id",agentId)
@@ -34,7 +41,7 @@ async function enforceExecutionLimits(agentId,requestedSol){
   if((positions||[]).length>=maxOpen){
     throw new Error(`Open-position limit reached for ${agentId}: ${positions.length} / ${maxOpen}`);
   }
-  return {maxDailySol:maxDaily,maxOpenPositions:maxOpen,usedTodaySol:used,openPositions:(positions||[]).length};
+  return {maxDailySol:maxDaily,maxOpenPositions:maxOpen,usedTodaySol:used,openPositions:(positions||[]).length,limitWindowStart:limitStart.toISOString()};
 }
 
 export default async function handler(req,res){
