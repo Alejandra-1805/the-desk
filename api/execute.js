@@ -1,4 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+import { parseEther } from "ethers";
+import { executeBuyAndRecord, executeSellAndRecord } from "../lib/evm-trading.js";
+import { fetchEthUsd } from "../lib/robinhood-market.js";
 
 function client(){
   const url=process.env.SUPABASE_URL||"";
@@ -46,10 +49,82 @@ async function enforceExecutionLimits(agentId,requestedSol){
 
 export default async function handler(req,res){
   try{
-    const mod=await import("../lib/solana-core.js");
+    const chain=(process.env.EXECUTION_CHAIN||"robinhood").toLowerCase();
     const supplied=req.headers["x-run-secret"]||req.query.secret||"";
-    if(!mod.RUN_SECRET || supplied!==mod.RUN_SECRET) return res.status(401).json({ok:false,error:"Unauthorized"});
+    if(!process.env.RUN_SECRET || supplied!==process.env.RUN_SECRET) return res.status(401).json({ok:false,error:"Unauthorized"});
 
+    if(chain==="robinhood"){
+      const supabase=client();
+      if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
+      const {data:state,error:stateErr}=await supabase.from("system_state").select("key,value").in("key",["bot_paused"]);
+      if(stateErr) throw stateErr;
+      const row=(state||[]).find(x=>x.key==="bot_paused");
+      const raw=row?.value;
+      const paused=raw===true || raw==="true" || raw?.value===true;
+
+      if(req.method==="GET"){
+        const {data:intents,error}=await supabase.from("trade_intents")
+          .select("id,agent_id,action,token_symbol,token_mint,amount_eth,amount_usd,reason,confidence,status,payload,created_at,expires_at,chain_id")
+          .eq("chain_id",4663).order("created_at",{ascending:false}).limit(25);
+        if(error) throw error;
+        return res.status(200).json({
+          ok:true,chain:"robinhood",chain_id:4663,intents:intents||[],
+          bot:{paused,evm_execution_enabled:process.env.EVM_EXECUTION_ENABLED==="true",max_trade_usd:0.50,max_open_positions:1}
+        });
+      }
+
+      if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
+      const body=typeof req.body==="string"?JSON.parse(req.body):req.body||{};
+
+      if(body.action==="pause-bot" || body.action==="resume-bot"){
+        const next=body.action==="pause-bot";
+        const {error}=await supabase.from("system_state").upsert({
+          key:"bot_paused",value:next,updated_at:new Date().toISOString()
+        },{onConflict:"key"});
+        if(error) throw error;
+        return res.status(200).json({ok:true,chain:"robinhood",bot_paused:next});
+      }
+
+      const agentId=String(body.agent_id||"bull").toLowerCase();
+      if(!["bull","degen","quant","bear"].includes(agentId)) return res.status(400).json({ok:false,error:"Invalid agent"});
+      const broadcastRequested=body.broadcast===true;
+      const broadcastAllowed=broadcastRequested && !paused && process.env.EVM_EXECUTION_ENABLED==="true";
+
+      if(body.action==="buy" || body.action==="prepare-buy"){
+        const token=String(body.token||body.mint||"");
+        const amountUsd=Math.min(0.50,Math.max(0.01,Number(body.amount_usd||0.50)));
+        const ethPriceUsd=await fetchEthUsd();
+        if(!ethPriceUsd) return res.status(503).json({ok:false,error:"ETH/USD reference unavailable"});
+        const amountEth=amountUsd/ethPriceUsd;
+        const amountWei=parseEther(amountEth.toFixed(18)).toString();
+        const result=await executeBuyAndRecord({
+          agentId,tokenOut:token,amountWei,amountUsd,
+          referencePriceUsd:Number(body.reference_price_usd||0)||null,
+          allowBroadcast:broadcastAllowed
+        });
+        return res.status(200).json({
+          ok:true,chain:"robinhood",mode:broadcastAllowed?"live":"dry_run",
+          max_trade_usd:0.50,eth_price_usd:ethPriceUsd,amount_usd:amountUsd,amount_eth:amountEth,
+          bot_paused:paused,broadcast_requested:broadcastRequested,broadcast_allowed:broadcastAllowed,result
+        });
+      }
+
+      if(body.action==="sell" || body.action==="prepare-sell"){
+        const token=String(body.token||body.mint||"");
+        const result=await executeSellAndRecord({
+          agentId,token,referencePriceUsd:Number(body.reference_price_usd||0)||null,
+          allowBroadcast:broadcastAllowed
+        });
+        return res.status(200).json({
+          ok:true,chain:"robinhood",mode:broadcastAllowed?"live":"dry_run",
+          bot_paused:paused,broadcast_requested:broadcastRequested,broadcast_allowed:broadcastAllowed,result
+        });
+      }
+
+      return res.status(400).json({ok:false,error:"Unsupported Robinhood action"});
+    }
+
+    const mod=await import("../lib/solana-core.js");
     if(req.method==="GET"){
       const supabase=client();
       if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
