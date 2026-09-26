@@ -1,24 +1,54 @@
+import { createClient } from "@supabase/supabase-js";
+
+function client(){
+  const url=process.env.SUPABASE_URL||"";
+  const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
+  return url&&key?createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}}):null;
+}
+
 export default async function handler(req,res){
-  if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
   try{
     const mod=await import("../lib/solana-core.js");
     const supplied=req.headers["x-run-secret"]||req.query.secret||"";
-    if(!mod.RUN_SECRET || supplied!==mod.RUN_SECRET){
-      return res.status(401).json({ok:false,error:"Unauthorized"});
+    if(!mod.RUN_SECRET || supplied!==mod.RUN_SECRET) return res.status(401).json({ok:false,error:"Unauthorized"});
+
+    if(req.method==="GET"){
+      const supabase=client();
+      if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
+      const {data,error}=await supabase.from("trade_intents")
+        .select("id,agent_id,action,token_symbol,token_mint,amount_sol,reason,confidence,status,payload,created_at,expires_at")
+        .order("created_at",{ascending:false}).limit(25);
+      if(error) throw error;
+      return res.status(200).json({ok:true,intents:data||[]});
     }
+
+    if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
     const body=typeof req.body==="string"?JSON.parse(req.body):req.body||{};
-    const data=await mod.executeBuy({
-      agentId:body.agent_id,
-      mint:body.mint,
-      amountSol:body.amount_sol
-    });
+
+    if(body.action==="approve-sell"){
+      const id=Number(body.intent_id);
+      if(!Number.isFinite(id)) return res.status(400).json({ok:false,error:"Invalid intent_id"});
+      const supabase=client();
+      if(!supabase) return res.status(503).json({ok:false,error:"Supabase not configured"});
+      const {data:row,error:readErr}=await supabase.from("trade_intents")
+        .select("id,agent_id,action,token_symbol,token_mint,status,reason,payload")
+        .eq("id",id).maybeSingle();
+      if(readErr) throw readErr;
+      if(!row) return res.status(404).json({ok:false,error:"Intent not found"});
+      if(row.action!=="SELL") return res.status(400).json({ok:false,error:"Only SELL intents can be approved here"});
+      if(row.status!=="PENDING") return res.status(409).json({ok:false,error:"Intent is not pending",intent:row});
+      const {data,error}=await supabase.from("trade_intents")
+        .update({status:"APPROVED",payload:{...(row.payload||{}),approved_at:new Date().toISOString(),approval_source:"control-panel"}})
+        .eq("id",id)
+        .select("id,agent_id,action,token_symbol,token_mint,status,reason,payload")
+        .single();
+      if(error) throw error;
+      return res.status(200).json({ok:true,intent:data,note:"SELL approved. Approval does not broadcast a Solana transaction."});
+    }
+
+    const data=await mod.executeBuy({agentId:body.agent_id,mint:body.mint,amountSol:body.amount_sol});
     return res.status(200).json({ok:true,data});
   }catch(e){
-    return res.status(500).json({
-      ok:false,
-      error:e?.message||"Execute failed",
-      name:e?.name||null,
-      stage:"execute"
-    });
+    return res.status(500).json({ok:false,error:e?.message||"Execute failed",name:e?.name||null,stage:"execute"});
   }
 }
