@@ -25,6 +25,11 @@ export default async function handler(req,res){
     if(req.method!=="POST") return res.status(405).json({ok:false,error:"Method not allowed"});
     const body=typeof req.body==="string"?JSON.parse(req.body):req.body||{};
 
+    if(body.action==="sell"){
+      const data=await mod.executeSell({agentId:body.agent_id,mint:body.mint});
+      return res.status(200).json({ok:true,data});
+    }
+
     if(body.action==="approve-sell"){
       const id=Number(body.intent_id);
       if(!Number.isFinite(id)) return res.status(400).json({ok:false,error:"Invalid intent_id"});
