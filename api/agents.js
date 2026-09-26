@@ -27,31 +27,35 @@ export default async function handler(req,res){
     const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
     if(!url||!key) return res.status(503).json({ok:false,error:"Supabase is not configured"});
     const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
-    const [{data:agents,error:aerr},{data:events,error:eerr},{data:positions,error:perr}] = await Promise.all([
+    const [{data:agents,error:aerr},{data:events,error:eerr},{data:txEvents,error:txerr},{data:positions,error:perr}] = await Promise.all([
       supabase.from("agents").select("*"),
       supabase.from("agent_events").select("*").order("created_at",{ascending:false}).limit(100),
+      supabase.from("agent_events")
+        .select("agent_id,event_type,token_mint,token_symbol,decision,tx_signature,created_at")
+        .not("tx_signature","is",null)
+        .order("created_at",{ascending:false})
+        .limit(100),
       supabase.from("paper_positions").select("*").order("opened_at",{ascending:false})
     ]);
     if(aerr) throw aerr;
     if(eerr) throw eerr;
+    if(txerr) throw txerr;
     if(perr) throw perr;
     const latest=new Map();
     const txByAgent=new Map();
-    for(const e of events||[]){
-      if(!latest.has(e.agent_id)) latest.set(e.agent_id,e);
-      if(e.tx_signature){
-        if(!txByAgent.has(e.agent_id)) txByAgent.set(e.agent_id,[]);
-        txByAgent.get(e.agent_id).push({
-          signature:e.tx_signature,
-          err:null,
-          confirmationStatus:"confirmed",
-          eventType:e.event_type,
-          decision:e.decision,
-          tokenSymbol:e.token_symbol,
-          tokenMint:e.token_mint,
-          createdAt:e.created_at
-        });
-      }
+    for(const e of events||[]) if(!latest.has(e.agent_id)) latest.set(e.agent_id,e);
+    for(const e of txEvents||[]){
+      if(!txByAgent.has(e.agent_id)) txByAgent.set(e.agent_id,[]);
+      txByAgent.get(e.agent_id).push({
+        signature:e.tx_signature,
+        err:null,
+        confirmationStatus:"confirmed",
+        eventType:e.event_type,
+        decision:e.decision,
+        tokenSymbol:e.token_symbol,
+        tokenMint:e.token_mint,
+        createdAt:e.created_at
+      });
     }
     const byId=new Map((agents||[]).map(x=>[x.id,x]));
     const byAgentPositions=new Map();
