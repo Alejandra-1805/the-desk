@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { markPaperPositions } from "../lib/paper-mark.js";
 import { paperScan } from "../lib/paper-core.js";
-import { runDeskScan } from "../lib/solana-core.js";
+import { runDeskScan, executeBuy, executeSell } from "../lib/solana-core.js";
 import { monitorLivePositions } from "../lib/live-monitor.js";
 
 async function schedulerSecret(){
@@ -12,6 +12,93 @@ async function schedulerSecret(){
   const {data}=await supabase.from("system_state").select("value").eq("key","scheduler_secret").maybeSingle();
   const v=data?.value;
   return typeof v==="string"?v:(v?.value||"");
+}
+
+async function automationState(){
+  const url=process.env.SUPABASE_URL||"";
+  const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
+  if(!url||!key) return {paused:true};
+  const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  const {data,error}=await supabase.from("system_state").select("key,value").in("key",["bot_paused"]);
+  if(error) throw error;
+  const row=(data||[]).find(x=>x.key==="bot_paused");
+  const raw=row?.value;
+  const paused=raw===true || raw==="true" || raw?.value===true;
+  return {paused};
+}
+
+async function enforceAutoLimits(supabase,agentId,requestedSol){
+  const maxDaily=Math.min(Number(process.env.MAX_DAILY_SOL||"0.01"),0.01);
+  const maxOpen=Math.min(Math.max(Number(process.env.MAX_OPEN_POSITIONS||"1"),1),2);
+  const dayStart=new Date(); dayStart.setUTCHours(0,0,0,0);
+  const [{data:events,error:eErr},{data:positions,error:pErr}]=await Promise.all([
+    supabase.from("agent_events").select("payload,created_at")
+      .eq("agent_id",agentId).eq("event_type","BUY_EXECUTED")
+      .gte("created_at",dayStart.toISOString()),
+    supabase.from("positions").select("id").eq("agent_id",agentId).eq("status","OPEN")
+  ]);
+  if(eErr) throw eErr;
+  if(pErr) throw pErr;
+  const used=(events||[]).reduce((s,e)=>s+Number(e.payload?.amount_sol||0),0);
+  if(used+Number(requestedSol||0)>maxDaily+1e-12) throw new Error("Daily limit reached");
+  if((positions||[]).length>=maxOpen) throw new Error("Open-position limit reached");
+  return {used,maxDaily,maxOpen};
+}
+
+async function executePendingIntents(){
+  const url=process.env.SUPABASE_URL||"";
+  const key=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
+  if(!url||!key) return {executed:0,skipped:0,errors:[]};
+  const supabase=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+  const {paused}=await automationState();
+  if(paused) return {executed:0,skipped:0,paused:true,errors:[]};
+
+  const autoBuy=process.env.AUTO_EXECUTION_ENABLED==="true";
+  const autoSell=process.env.AUTO_SELL_ENABLED==="true";
+  if(!autoBuy && !autoSell) return {executed:0,skipped:0,paused:false,errors:[]};
+
+  const {data:intents,error}=await supabase.from("trade_intents")
+    .select("*").eq("status","PENDING").order("created_at",{ascending:true}).limit(20);
+  if(error) throw error;
+
+  let executed=0, skipped=0;
+  const errors=[];
+  const ordered=[...(intents||[])].sort((a,b)=>(a.action==="SELL"?-1:1)-(b.action==="SELL"?-1:1));
+
+  for(const intent of ordered){
+    try{
+      if(intent.expires_at && new Date(intent.expires_at).getTime()<Date.now()){
+        await supabase.from("trade_intents").update({status:"EXPIRED"}).eq("id",intent.id);
+        skipped++;
+        continue;
+      }
+
+      if(intent.action==="SELL"){
+        if(!autoSell){skipped++;continue;}
+        const data=await executeSell({agentId:intent.agent_id,mint:intent.token_mint});
+        await supabase.from("trade_intents").update({
+          status:"EXECUTED",
+          payload:{...(intent.payload||{}),auto_executed_at:new Date().toISOString(),result:{signature:data?.execution?.signature||data?.execution?.txid||null}}
+        }).eq("id",intent.id).eq("status","PENDING");
+        executed++;
+        continue;
+      }
+
+      if(intent.action==="BUY"){
+        if(!autoBuy){skipped++;continue;}
+        await enforceAutoLimits(supabase,intent.agent_id,intent.amount_sol);
+        const data=await executeBuy({agentId:intent.agent_id,mint:intent.token_mint,amountSol:intent.amount_sol});
+        await supabase.from("trade_intents").update({
+          status:"EXECUTED",
+          payload:{...(intent.payload||{}),auto_executed_at:new Date().toISOString(),result:{signature:data?.execution?.signature||data?.execution?.txid||null}}
+        }).eq("id",intent.id).eq("status","PENDING");
+        executed++;
+      }
+    }catch(e){
+      errors.push({id:intent.id,agent:intent.agent_id,action:intent.action,error:e?.message||"Execution failed"});
+    }
+  }
+  return {executed,skipped,paused:false,errors};
 }
 
 async function queueLiveIntents(){
@@ -70,7 +157,8 @@ export default async function handler(req,res){
     }
     const liveMonitor=mode==="live"?await monitorLivePositions():null;
     const intents=mode==="live"?await queueLiveIntents():{queued:0};
-    return res.status(200).json({ok:true,mode,marked,scanned,live_monitor:liveMonitor,intents});
+    const automation=mode==="live"?await executePendingIntents():null;
+    return res.status(200).json({ok:true,mode,marked,scanned,live_monitor:liveMonitor,intents,automation});
   }catch(e){
     return res.status(503).json({ok:false,error:e?.message||"System cycle failed"});
   }
