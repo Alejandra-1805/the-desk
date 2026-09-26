@@ -303,7 +303,9 @@ function renderCompare(){
   document.getElementById('compareGrid').innerHTML=AGENTS.map((a,i)=>{
     const d=agentData[i]||{};
     const e=d.latestEvent||{};
-    const pnl=Number(d.paperScorePct||0);
+    const x=d.latestExecution||null;
+    const lp=d.latestPosition||null;
+    const livePnl=Number(d.liveRealizedPnlSol||0);
     return `<article class="compareCard"><div class="compareScreen">
       <div class="cHead">
         <div><div class="cTicker">${a.name}</div><div class="mCompany">${a.company}</div></div>
@@ -311,11 +313,21 @@ function renderCompare(){
       </div>
       <div class="cGrid">
         <div class="cChart" style="display:grid;place-items:center;text-align:center">
-          <div><div class="signalTitle" style="color:${a.color}">${e.decision||'WAITING'}</div><div class="cNote">${e.token_symbol||'No verified decision yet'}</div></div>
+          <div>
+            <div class="kicker" style="margin-bottom:6px">LATEST SIGNAL</div>
+            <div class="signalTitle" style="color:${a.color}">${e.decision||'WAIT'}</div>
+            <div class="cNote">${e.token_symbol||'No current token'}</div>
+            <div class="note" style="margin-top:10px">Signal only · not necessarily executed</div>
+          </div>
         </div>
-        <div class="cStats">P&L <b>${pct(pnl)}</b><br>WINS <b>${Number(d.wins||0)}</b><br>OPEN <b>${Number(d.openPositions||0)}</b><br>GEN <b>${Number(d.generation||0)}</b></div>
+        <div class="cStats">
+          WALLET <b>${d.wallet?sol(d.balanceSol):'—'}</b><br>
+          LIVE OPEN <b>${Number(d.openPositions||0)}</b><br>
+          LAST EXEC <b>${x?(x.decision||x.eventType||'TX'):'NONE'}</b><br>
+          LIVE P&L <b>${signed(livePnl)}</b>
+        </div>
       </div>
-      <div class="cNote">${e.reason||'Agent is waiting for wallets, API keys and the first scan.'}</div>
+      <div class="cNote">${x?('<b>LAST EXECUTED:</b> '+(x.decision||x.eventType||'TX')+' '+(x.tokenSymbol||'')+' · <a href="https://solscan.io/tx/'+x.signature+'" target="_blank" rel="noopener">VIEW ON SOLSCAN ↗</a>'):(e.reason||'No executed trade yet. The signal above is analysis only.')}</div>
     </div></article>`;
   }).join('');
 }
@@ -335,7 +347,7 @@ async function loadDesk(){
     const r=await fetch('/api/leaderboard',{cache:'no-store'}); const j=await r.json(); if(j.ok) leaderboard=j.data||[];
   }catch{}
   const ready=health.helius_configured&&health.jupiter_configured&&health.ai_configured&&health.database_configured;
-  document.getElementById('statusText').textContent=ready?'SOLANA DESK ONLINE':'WAITING FOR API KEYS / WALLETS';
+  document.getElementById('statusText').textContent=ready?'MARKET AGENTS ONLINE':'WAITING FOR API KEYS / WALLETS';
   AGENTS.forEach((_,i)=>{const el=document.getElementById('monitor'+i);if(el)el.innerHTML=renderMonitor(i);});
   buildLeague(); renderCompare();
 }
