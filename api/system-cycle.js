@@ -3,6 +3,8 @@ import { markPaperPositions } from "../lib/paper-mark.js";
 import { paperScan } from "../lib/paper-core.js";
 import { runDeskScan, executeBuy, executeSell } from "../lib/solana-core.js";
 import { monitorLivePositions } from "../lib/live-monitor.js";
+import { runRobinhoodAgents } from "../lib/robinhood-agents.js";
+import { markRobinhoodPositions } from "../lib/evm-mark.js";
 
 async function schedulerSecret(){
   const url=process.env.SUPABASE_URL||"";
@@ -154,17 +156,25 @@ export default async function handler(req,res){
     const chain=(process.env.EXECUTION_CHAIN||"robinhood").toLowerCase();
     if(chain==="robinhood"){
       const {paused}=await automationState();
+      let marked=null,analysis=null;
+      try{marked=await markRobinhoodPositions();}catch(e){marked={ok:false,error:e?.message||"EVM mark failed"};}
+      try{analysis=await runRobinhoodAgents({save:true});}catch(e){analysis={ok:false,error:e?.message||"Robinhood scan failed"};}
       return res.status(200).json({
         ok:true,
         chain:"robinhood",
         chain_id:4663,
         bot_paused:paused,
-        mode:"migration",
-        scanned:null,
-        live_monitor:null,
-        intents:{queued:0},
-        automation:{executed:0,skipped:0,paused:true},
-        note:"Solana/Jupiter execution is disabled during the Robinhood Chain migration."
+        mode:"dry_run",
+        max_trade_usd:0.50,
+        max_open_positions:1,
+        marked,
+        analysis,
+        automation:{
+          broadcast:false,
+          evm_execution_enabled:process.env.EVM_EXECUTION_ENABLED==="true",
+          paused
+        },
+        note:"Robinhood agents are scanning and recording signals. No transaction can broadcast while EVM execution remains disabled."
       });
     }
     const mode=(process.env.TRADING_MODE||"paper").toLowerCase();
