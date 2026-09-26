@@ -181,7 +181,7 @@ function latestEventHtml(d,a){
     <div class="thesis">
       <b>${e.token_symbol||payload.symbol||'NO TOKEN SELECTED'}</b><br>
       ${e.reason||payload.comment||'Decision stored by the agent engine.'}
-      <br><br><b>CONFIDENCE</b> ${conf?conf.toFixed(0)+'%':'—'}
+      <br><br><b>CONFIDENCE</b> ${conf?((conf<=1?conf*100:conf).toFixed(0)+'%'):'—'}
       <br><b>MODE</b> ${(payload.trading_mode||'paper').toUpperCase()}
     </div>
     <div class="note">AI proposes · deterministic risk engine decides whether execution is allowed</div>`;
@@ -192,7 +192,7 @@ function activityHtml(d){
   if(!d.wallet) return waitBox('WAITING FOR AGENT WALLET','A dedicated Solana wallet has not been configured yet');
   if(!txs.length) return waitBox('NO ON-CHAIN ACTIVITY YET','Confirmed transactions will appear here through Helius');
   return txs.slice(0,4).map(x=>`<div class="recordRow">
-    <span><a href="https://solscan.io/tx/${x.signature}" target="_blank" rel="noopener">${short(x.signature,6)}</a></span>
+    <span><a href="https://solscan.io/tx/${x.signature}" target="_blank" rel="noopener">${x.decision||x.eventType||'TX'} · ${x.tokenSymbol||short(x.signature,6)}</a></span>
     <span>${x.err?'FAILED':'CONFIRMED'}</span>
     <span>${x.confirmationStatus||'—'}</span>
   </div>`).join('');
