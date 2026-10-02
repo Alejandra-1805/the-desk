@@ -1,4 +1,4 @@
-import {BrowserProvider,Interface,getAddress,formatEther} from 'https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.min.js';
+import {BrowserProvider,Interface,getAddress,formatEther} from '/api/wallet-library?version=6.15.0';
 const $=s=>document.querySelector(s),factory='0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e';
 const abi=new Interface(['function launchToken((string name,string symbol,string logo,string description,(string twitter,string telegram,string discord,string website,string farcaster) socials,address creatorFeeRecipient,uint16 creatorTaxBps,bool buybackEnabled,bytes32 expectedEconomics,bytes32 salt) params,uint256 launchConfigId,address pairToken) payable returns (address token,address curve)']);
 const key='dotlab.pendingMainnetLaunch.v1';let wallet,provider,account,quote,busy=false,memoryPending=null;
