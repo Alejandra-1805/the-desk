@@ -6,8 +6,8 @@ w.fetch=async()=>({ok:true,json:async()=>({launches:[],fromBlock:0,toBlock:10,ne
 w.eval(h.match(/<script>([\s\S]*?)<\/script>/)[1]);await new Promise(r=>setTimeout(r,0));
 w.document.querySelector('.heroCTA').click();assert(w.document.querySelector('#create-token').scrolled);assert(!w.document.querySelector('#review').open);
 w.document.querySelector('[data-dot="yellow"]').click();assert(w.document.querySelector('#selectedDotArt').src.includes('02_dot_amarillo_frente'));
-const f=w.document.querySelector('#tokenForm');f.elements.name.value='NOVA';f.elements.symbol.value='NOVA';f.elements.description.value='<img src=x onerror=alert(1)>';
-f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert(w.document.querySelector('#review').open);assert(!w.document.querySelector('#reviewContent p img'));assert(w.dotLabCurrentDraft.dot==='yellow');assert(w.document.querySelector('#signLaunch').disabled);
+const f=w.document.querySelector('#tokenForm');assert(f.noValidate);f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert(w.document.querySelector('#formError').textContent.includes('Enter a name'));assert(w.document.querySelector('a[href="https://x.com/DotLabOnRH"]'));f.elements.name.value='NOVA';f.elements.symbol.value='NOVA';f.elements.description.value='<img src=x onerror=alert(1)>';
+f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert(w.document.querySelector('#review').open);assert(!w.document.querySelector('#reviewContent p img'));assert(w.dotLabCurrentDraft.dot==='yellow');assert(w.document.querySelector('#signLaunch').disabled);assert(w.document.querySelector('[data-launch-estimate]').hidden);assert(w.document.querySelector('#checkMainnetAccess').hidden);
 w.document.querySelector('[data-token-view="launched"]').click();assert.equal(w.document.querySelectorAll('.publicTokenCard').length,0);
 w.dispatchEvent(new w.CustomEvent('dotlab:confirmed',{detail:{address:'0x'+'a'.repeat(40),chainId:4663,status:'confirmed',name:'TEST',symbol:'TEST',dot:'green'}}));
 assert.equal(w.document.querySelector('.publicTokenCard').href,'https://gmgn.ai/robinhood/token/0x'+'a'.repeat(40));
