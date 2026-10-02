@@ -1,5 +1,5 @@
 {
-  "name": "muse-agents",
+  "name": "dot-lab-launchpad",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,5 @@
     "openai": "^5.20.0",
     "ethers": "^6.15.0"
   },
-  "scripts": {
-    "wallets": "node scripts/generate-agent-wallets.mjs",
-    "start": "node backend/server.js"
-  }
+  "scripts": {}
 }

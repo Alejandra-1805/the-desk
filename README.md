@@ -1,86 +1,28 @@
-# MARKET AGENTS — Solana AI Agent Competition
+# DOT LAB — Pump.fun token launch workspace
 
-MARKET AGENTS is a public Solana agent league. BULL, DEGEN, QUANT and BEAR evaluate the same opportunity set with different strategies, record decisions, and build a measurable track record.
+The original office / PC layout now presents a token launchpad with four supplied Dot illustrations.
 
-## Current production architecture
+## Current working flow
 
-- Vercel — frontend + APIs
-- Supabase — agent state, events, paper positions, fee ledger, generations
-- Helius — Solana RPC and creator-fee webhook source
-- Jupiter — token discovery, pricing, route preview and later execution
-- OpenAI — structured agent decisions
-- Solscan — public verification links
+1. Select a Dot theme.
+2. Enter token name, ticker, description and optional social link.
+3. Optionally upload square token artwork (PNG/JPG/WebP, max 2 MB).
+4. Save a device-local launch draft and review it.
+5. Copy fields, download artwork / launch brief and continue to https://pump.fun/create.
+6. Complete creation and sign with your own Solana wallet on Pump.fun.
 
-## Current safety state
+Fields are not automatically prefilled on Pump.fun. Saving a draft does not mint a token. No direct token creation, wallet custody, bot execution, reward distribution or market trading occurs in this app.
 
-Production is intentionally configured as:
+The old agent execution endpoints, wallet scripts, trading backend and artwork have been retired from this repository. Existing hosted environment variables and external databases have not been modified.
 
-```
-TRADING_MODE=paper
-LIVE_TRADING_ENABLED=false
-MAX_TRADE_SOL=0.002
-LIVE_AGENT_ALLOWLIST=bull
-```
+## Direct launch integration still required
 
-No real swap should be enabled until the controlled BULL test is completed.
+Creating / signing inside DOT LAB requires a verified Solana transaction flow, permanent token image / metadata storage, a configured RPC and wallet integration. This is not implemented in the current external handoff version.
 
-## Public/read-only endpoints
+## Validation
 
-- `GET /api/health`
-- `GET /api/agents`
-- `GET /api/opportunities`
-- `GET /api/leaderboard`
-- `GET /api/paper-mark`
-- `GET /api/paper-scan`
-- `GET /api/wallet-check`
-- `GET /api/live-preflight`
-- `GET /api/launch-readiness`
-- `GET /api/fee-status`
+Validated: four Dot assets, dot selection, token field validation, escaped descriptions, local draft save, review, clipboard copy, artwork download destination, PC navigation and official Pump.fun create destination. No mainnet mint or wallet signature was tested.
 
-## Protected/internal endpoints
+## Run locally
 
-- `POST /api/scan` — RUN_SECRET
-- `POST /api/execute` — RUN_SECRET; also requires live mode
-- `GET /api/system-cycle` — CRON_SECRET via Authorization Bearer
-- `POST /api/helius-fees?secret=...` — HELIUS_WEBHOOK_SECRET
-
-## Paper competition
-
-A BUY decision creates a paper position with the verified Jupiter reference price. `paper-mark` updates P&L using Jupiter pricing and closes positions according to each strategy's rules. The leaderboard ranks agents from stored outcomes rather than fabricated results.
-
-## Creator-fee / generation model
-
-The fee pipeline is already scaffolded.
-
-Default target:
-
-```
-SPAWN_THRESHOLD_USD=10
-SPAWN_TOKEN_BUY_SHARE=0.5
-SPAWN_BANKROLL_SHARE=0.5
-```
-
-After launch, Helius can POST creator-fee transfers into `/api/helius-fees`. The database tracks verified transfers and `/api/fee-status` reports progress toward the next agent generation.
-
-Three launch-only values remain intentionally blank until the token exists:
-
-```
-PROJECT_TOKEN_MINT=
-CREATOR_FEE_WALLET=
-HELIUS_WEBHOOK_SECRET=
-```
-
-## Before live launch
-
-1. Finish paper evaluation.
-2. Perform one controlled BULL trade.
-3. Verify transaction and exit path.
-4. Create the project token and dedicated creator-fee wallet.
-5. Configure the Helius webhook.
-6. Add project domain.
-7. Only then enable the intended live agents.
-
-Never commit private keys or paste them into chat.
-
-
-<!-- live-env-refresh: 2026-09-25T04:05Z -->
+Serve the repository root with any static HTTP server. No API keys are required for the current handoff flow.
