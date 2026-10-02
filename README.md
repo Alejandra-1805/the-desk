@@ -4,7 +4,7 @@ Token launch workspace for Robinhood Chain. The original office/PC design is pre
 
 ## Current release
 
-- Default mode creates **test ERC20 tokens** on Robinhood Chain testnet (46630). The explicit REAL LAUNCH mode integrates Pons V2 on mainnet (4663), requiring live authorization (`canLaunch`) and successful simulation before signing. Pons currently restricts public access; this app cannot override that restriction.
+- Default mode creates **test ERC20 tokens** on Robinhood Chain testnet (46630). The explicit REAL LAUNCH mode integrates Pons V2 on mainnet (4663), requiring live authorization (`canLaunch`) and successful simulation before signing. Permission is read live. The docs mention restricted access, but live checks on two probe addresses returned true on 2026-10-02. Each actual visitor still needs a successful preflight.
 - A test deployment is signed by the visitor's browser wallet. No private key, custody or server-side signing is used.
 - Test tokens have fixed supply (1 billion), go to their creator, and have no Pons market. The Solidity constructor rejects every other chain, including mainnet.
 - The public catalog reads `DotLabTestLaunch` events and verifies the contract's deployed bytecode. Anyone can view confirmed deployments without localStorage.
@@ -42,4 +42,4 @@ Optional dedicated RPC settings are listed in `.env.example`. Public RPCs are ra
 
 Uploaded images are draft previews only. On-chain logo metadata uses a public HTTPS URL or the selected hosted Dot artwork. IPFS/custom image hosting is not configured.
 
-Live public launch readiness requires Pons to open launch access or authorize the creator, followed by a successful live launch, receipt/catalog verification and external GMGN indexing. No live mainnet launch was sent during development.
+Live launch validation requires successful preflight for the actual creator, a signed launch, receipt/catalog verification and external GMGN indexing. No live mainnet launch was sent during development.
