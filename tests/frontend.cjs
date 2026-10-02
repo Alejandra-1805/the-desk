@@ -9,7 +9,7 @@ w.document.querySelector('[data-dot="yellow"]').click();assert(w.document.queryS
 const f=w.document.querySelector('#tokenForm');f.elements.name.value='NOVA';f.elements.symbol.value='NOVA';f.elements.description.value='<img src=x onerror=alert(1)>';
 f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));assert(w.document.querySelector('#review').open);assert(!w.document.querySelector('#reviewContent p img'));assert(w.dotLabCurrentDraft.dot==='yellow');assert(w.document.querySelector('#signLaunch').disabled);
 w.document.querySelector('[data-token-view="launched"]').click();assert.equal(w.document.querySelectorAll('.publicTokenCard').length,0);
-w.dispatchEvent(new w.CustomEvent('dotlab:confirmed',{detail:{address:'0x'+'a'.repeat(40),chainId:46630,status:'confirmed',name:'TEST',symbol:'TEST',dot:'green'}}));
-assert.equal(w.document.querySelector('.publicTokenCard').href,'https://explorer.testnet.chain.robinhood.com/address/0x'+'a'.repeat(40));
+w.dispatchEvent(new w.CustomEvent('dotlab:confirmed',{detail:{address:'0x'+'a'.repeat(40),chainId:4663,status:'confirmed',name:'TEST',symbol:'TEST',dot:'green'}}));
+assert.equal(w.document.querySelector('.publicTokenCard').href,'https://gmgn.ai/robinhood/token/0x'+'a'.repeat(40));
 assert(!w.document.querySelector('model-viewer'));console.log('PASS: centered form navigation, Dot selection, escaped review, signing gate, draft separation and testnet explorer routing');
 })().catch(e=>{console.error(e);process.exitCode=1});
