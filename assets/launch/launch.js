@@ -1,4 +1,4 @@
-import * as mainnet from './mainnet.js?v=mainnet-20261002-2';
+import * as mainnet from './mainnet.js?v=initial-buy-20261002-1';
 const $=s=>document.querySelector(s),wallets=new Map();let busy=false;
 function message(text,error=false){$('#walletStatus').textContent=text;$('#walletStatus').classList.toggle('error',error)}
 function friendly(e){return e.code===4001||e.code==='ACTION_REJECTED'?'You cancelled the wallet request. No new transaction was sent.':String(e.shortMessage||e.message||'Request failed').slice(0,240)}
