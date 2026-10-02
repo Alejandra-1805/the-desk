@@ -17,6 +17,6 @@
   },
   "scripts": {
     "build:token": "node scripts/build-test-token.cjs",
-    "test": "node tests/launch-contract.cjs && node tests/catalog.mjs && node tests/pons-preflight.mjs && node tests/frontend.cjs && node tests/wallet-flow.cjs"
+    "test": "node tests/launch-contract.cjs && node tests/catalog.mjs && node tests/pons-preflight.mjs && node tests/frontend.cjs && node tests/wallet-flow.cjs && node tests/mainnet-flow.cjs"
   }
 }

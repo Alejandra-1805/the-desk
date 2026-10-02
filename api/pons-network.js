@@ -1,8 +1,9 @@
-import { Interface, keccak256 } from 'ethers';
+import { Interface, keccak256, isAddress } from 'ethers';
 import { PONS_FACTORY, PONS_ABI } from '../lib/launch/pons.js';
 import { checkNetwork, rpc, send } from '../lib/launch/rpc.js';
 export default async function handler(req,res){
  if(req.method!=='GET')return send(res,405,{error:'Use GET'});
+ const creator=req.query?.creator;if(creator!==undefined&&!isAddress(String(creator)))return send(res,400,{error:'Invalid public wallet address'});
  try{
   await checkNetwork('mainnet');
   const code=await rpc('mainnet','eth_getCode',[PONS_FACTORY,'latest']);
@@ -11,6 +12,7 @@ export default async function handler(req,res){
   async function read(name,args=[]){const data=await rpc('mainnet','eth_call',[{to:PONS_FACTORY,data:abi.encodeFunctionData(name,args)},'latest']);return abi.decodeFunctionResult(name,data)}
   const [fee,count]=await Promise.all([read('launchFee'),read('launchConfigCount')]);
   const openConfigs=[];for(let id=0;id<Math.min(Number(count[0]),32);id++){const [c]=await read('getLaunchConfig',[id]);if(c.enabled)openConfigs.push({id,supply:c.supply.toString(),curveFeeBps:c.curveFeeBps.toString()})}
-  return send(res,200,{readable:true,chainId:4663,factory:PONS_FACTORY,runtimeCodeHash:keccak256(code),launchFeeWei:fee[0].toString(),openConfigs,mainnetEnabled:false,notice:'Read-only network verification; not an end-to-end launch test.'});
+  const canLaunch=creator===undefined?null:Boolean((await read('canLaunch',[creator]))[0]);
+  return send(res,200,{canLaunch,readable:true,chainId:4663,factory:PONS_FACTORY,runtimeCodeHash:keccak256(code),launchFeeWei:fee[0].toString(),openConfigs,mainnetEnabled:true,notice:'Read-only network verification; not an end-to-end launch test.'});
  }catch(e){return send(res,503,{readable:false,mainnetEnabled:false,error:e.message})}
 }

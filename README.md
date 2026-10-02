@@ -4,19 +4,19 @@ Token launch workspace for Robinhood Chain. The original office/PC design is pre
 
 ## Current release
 
-- Mainnet is disabled. The UI only creates **test ERC20 tokens** on Robinhood Chain testnet (46630).
+- Default mode creates **test ERC20 tokens** on Robinhood Chain testnet (46630). The explicit REAL LAUNCH mode integrates Pons V2 on mainnet (4663), requiring live authorization (`canLaunch`) and successful simulation before signing. Pons currently restricts public access; this app cannot override that restriction.
 - A test deployment is signed by the visitor's browser wallet. No private key, custody or server-side signing is used.
 - Test tokens have fixed supply (1 billion), go to their creator, and have no Pons market. The Solidity constructor rejects every other chain, including mainnet.
 - The public catalog reads `DotLabTestLaunch` events and verifies the contract's deployed bytecode. Anyone can view confirmed deployments without localStorage.
 - Catalog pages cover 5,000 blocks, with "Load older launches" for earlier history. There is no off-chain launch database.
 - Drafts stay in localStorage. Submitted transaction hashes are retained for recovery after a refresh; only network-confirmed deployments enter the public list.
-- Test cards link to the testnet explorer. GMGN links are reserved for future mainnet Pons launches.
+- Test cards link to the testnet explorer. Mainnet cards open GMGN. Mainnet catalog verifies documented factory events and transaction inputs marked with the DOT LAB salt prefix; no draft is presented as a confirmed token.
 
 ## Pons mainnet integration
 
 `lib/launch/pons.js` implements read-only Pons V2 preflight using the documented mainnet factory. It checks chain, deployed code, launch gate and enabled config, reads the current fee, pins economics, simulates and estimates gas. Default parameters use native ETH, no extra creator tax, no buyback, and the creator's wallet as fee recipient.
 
-`POST /api/pons-preflight` performs a read-only simulation. It **cannot sign or send a transaction**. Live Pons integration and market/indexing checks still need verification before enabling mainnet. No Pons testnet deployment has been verified; the test ERC20 is not represented as a Pons test launch.
+`POST /api/pons-preflight` performs a read-only simulation. It **cannot sign or send a transaction**. The visitor explicitly selects mainnet and signs through `assets/launch/mainnet.js`; browser-side validation checks destination, reviewed metadata, fee recipient, zero tax and no buyback. Automated mainnet-path tests use a local factory double, not the live Pons protocol. A live authorized-wallet launch and external GMGN indexing are not yet verified. No Pons testnet deployment has been verified; the test ERC20 is not represented as a Pons test launch.
 
 Sources: https://docs.ponsfamily.com/v2 and https://docs.robinhood.com/chain/ .
 
@@ -42,4 +42,4 @@ Optional dedicated RPC settings are listed in `.env.example`. Public RPCs are ra
 
 Uploaded images are draft previews only. On-chain logo metadata uses a public HTTPS URL or the selected hosted Dot artwork. IPFS/custom image hosting is not configured.
 
-Mainnet readiness requires a successful wallet test, live Pons preflight, confirmation/indexing checks and a reviewed release enabling production signing and catalog.
+Live public launch readiness requires Pons to open launch access or authorize the creator, followed by a successful live launch, receipt/catalog verification and external GMGN indexing. No live mainnet launch was sent during development.

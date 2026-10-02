@@ -13,7 +13,7 @@
     "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
     "explorer": "https://robinhoodchain.blockscout.com",
     "factory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
-    "enabled": false,
-    "reason": "Pons integration must pass live preflight and launch verification before mainnet is enabled."
+    "enabled": true,
+    "reason": "Pons V2 requires wallet authorization. Every estimate checks canLaunch and simulates before signing."
   }
 }

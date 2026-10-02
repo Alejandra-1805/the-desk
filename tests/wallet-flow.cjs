@@ -20,7 +20,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsd
  const f=w.document.querySelector('#tokenForm');f.elements.name.value='FLOW TEST';f.elements.symbol.value='FLOW';f.elements.description.value='Wallet flow test';f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  assert(w.document.querySelector('#signLaunch').disabled);await w.dotLabLaunch.estimate(w.dotLabCurrentDraft);assert(!w.document.querySelector('#signLaunch').disabled);assert.equal(sends,0);
  await w.dotLabLaunch.sign(w.dotLabCurrentDraft);assert.equal(sends,1);assert(w.document.querySelector('#launchStatus').textContent.includes('Confirmed on Robinhood testnet'));assert(w.document.querySelector('#launchContract').href.includes('/address/0x'));assert.equal(w.localStorage.getItem('dotlab.pendingTestLaunch.v1'),null);
- const status=w.document.querySelector('#launchStatus').textContent;assert(status.includes('Token CA:'));assert(config.mainnet.enabled===false);
+ const status=w.document.querySelector('#launchStatus').textContent;assert(status.includes('Token CA:'));assert(config.mainnet.enabled===true);
  console.log('PASS: browser wallet cancellation, connection, fee estimate without signing, one signed test deployment, confirmation, CA and pending recovery cleanup (local EVM only)');
  global.fetch=originalFetch;await chain.disconnect();dom.window.close();
 })().catch(e=>{console.error(e);process.exitCode=1});
