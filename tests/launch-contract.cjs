@@ -1,0 +1,26 @@
+const fs=require('fs');
+const assert=require('node:assert/strict');
+const ganache=require('ganache');
+const {BrowserProvider,ContractFactory,Contract,keccak256,Interface}=require('ethers');
+const artifact=JSON.parse(fs.readFileSync('assets/launch/test-token.json'));
+const args=['DOT LAB TEST','DLTEST','Test deployment only','https://example.com/green.webp','','green'];
+(async()=>{
+ const eip=ganache.provider({logging:{quiet:true},chain:{chainId:46630,hardfork:'shanghai'},wallet:{totalAccounts:2}});
+ const provider=new BrowserProvider(eip);provider.pollingInterval=10;
+ const signer=await provider.getSigner(),other=await provider.getSigner(1);
+ const f=new ContractFactory(artifact.abi,artifact.bytecode,signer);
+ const deployment=await f.getDeployTransaction(...args),gas=await provider.estimateGas({...deployment,from:await signer.getAddress()});
+ const token=await f.deploy(...args);const receipt=await token.deploymentTransaction().wait();
+ assert.equal(receipt.status,1);assert.equal(await token.name(),args[0]);assert.equal(await token.symbol(),args[1]);
+ assert.equal(await token.description(),args[2]);assert.equal(await token.dot(),'green');assert.equal(await token.creator(),await signer.getAddress());
+ assert.equal(await token.totalSupply(),1_000_000_000n*10n**18n);assert.equal(await token.balanceOf(await signer.getAddress()),await token.totalSupply());
+ assert.equal(keccak256(await provider.getCode(await token.getAddress())),artifact.runtimeBytecodeHash);
+ const event=receipt.logs.map(l=>{try{return new Interface(artifact.abi).parseLog(l)}catch{return null}}).find(l=>l?.name==='DotLabTestLaunch');
+ assert.equal(event.args.creator,await signer.getAddress());assert.equal(event.args.dot,'green');
+ await (await token.transfer(await other.getAddress(),123n)).wait();assert.equal(await token.balanceOf(await other.getAddress()),123n);
+ assert(!artifact.abi.some(a=>a.type==='function'&&a.name==='mint'),'no additional mint function');
+ const badArgs=[...args];badArgs[1]='bad';await assert.rejects(provider.estimateGas({...await f.getDeployTransaction(...badArgs),from:await signer.getAddress()}));
+ const wrong=ganache.provider({logging:{quiet:true},chain:{chainId:4663,hardfork:'shanghai'}});const wrongProvider=new BrowserProvider(wrong);const wf=new ContractFactory(artifact.abi,artifact.bytecode,await wrongProvider.getSigner());await assert.rejects(wf.deploy(...args));
+ console.log('PASS: real EVM deployment, CA, metadata, fixed supply, transfer, catalog event, bytecode identity, invalid ticker and mainnet rejection. Gas:',gas.toString());
+ await eip.disconnect();await wrong.disconnect();
+})().catch(e=>{console.error(e);process.exitCode=1});

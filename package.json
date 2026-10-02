@@ -1,16 +1,10 @@
 {
-  "name": "dot-lab-launchpad",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.57.4",
-    "bs58": "^6.0.0",
-    "openai": "^5.20.0",
-    "ethers": "^6.15.0"
-  },
-  "scripts": {}
+  "name":"dot-lab",
+  "version":"1.0.0",
+  "private":true,
+  "type":"module",
+  "engines":{"node":">=20"},
+  "dependencies":{"ethers":"6.15.0"},
+  "devDependencies":{"@openzeppelin/contracts":"5.4.0","solc":"0.8.30","ganache":"7.9.2"},
+  "scripts":{"build:token":"node scripts/build-test-token.cjs","test":"node tests/launch-contract.cjs"}
 }

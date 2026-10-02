@@ -1,0 +1,15 @@
+const fs = require('fs');
+const path = require('path');
+const solc = require('solc');
+const { keccak256 } = require('ethers');
+const sourcePath = 'contracts/DotLabTestToken.sol';
+const source = fs.readFileSync(sourcePath, 'utf8');
+const input = {language:'Solidity',sources:{[sourcePath]:{content:source}},settings:{optimizer:{enabled:true,runs:200},evmVersion:'paris',outputSelection:{'*':{'*':['abi','evm.bytecode.object','evm.deployedBytecode.object']}}}};
+const output = JSON.parse(solc.compile(JSON.stringify(input), {import:p=>{try{return {contents:fs.readFileSync(require.resolve(p),'utf8')}}catch{return {error:'Import not found: '+p}}}}));
+const errors=(output.errors||[]).filter(e=>e.severity==='error');
+if(errors.length)throw Error(errors.map(e=>e.formattedMessage).join('\n'));
+const c=output.contracts[sourcePath].DotLabTestToken;
+const artifact={contractName:'DotLabTestToken',compiler:solc.version(),chainId:46630,abi:c.abi,bytecode:'0x'+c.evm.bytecode.object,runtimeBytecodeHash:keccak256('0x'+c.evm.deployedBytecode.object)};
+fs.writeFileSync('assets/launch/test-token.json',JSON.stringify(artifact));
+fs.writeFileSync('lib/launch/test-token-runtime.json',JSON.stringify({hash:artifact.runtimeBytecodeHash,event:c.abi.find(a=>a.name==='DotLabTestLaunch')}));
+console.log('Compiled testnet-only token:',c.evm.bytecode.object.length/2,'creation bytes');
