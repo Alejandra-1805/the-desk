@@ -26,8 +26,6 @@ Sources: https://docs.ponsfamily.com/v2 and https://docs.robinhood.com/chain/ .
 npm install
 npm run build:token
 npm test
-node tests/catalog.mjs
-node tests/pons-preflight.mjs
 ```
 
 The Solidity artifact is compiled with Solidity 0.8.30, OpenZeppelin 5.4.0, optimizer 200 and Paris EVM target. The artifact includes its runtime hash for catalog verification.

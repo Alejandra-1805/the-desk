@@ -1,10 +1,22 @@
 {
-  "name":"dot-lab",
-  "version":"1.0.0",
-  "private":true,
-  "type":"module",
-  "engines":{"node":">=20"},
-  "dependencies":{"ethers":"6.15.0"},
-  "devDependencies":{"@openzeppelin/contracts":"5.4.0","solc":"0.8.30","ganache":"7.9.2"},
-  "scripts":{"build:token":"node scripts/build-test-token.cjs","test":"node tests/launch-contract.cjs"}
+  "name": "dot-lab",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ethers": "6.15.0"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "5.4.0",
+    "solc": "0.8.30",
+    "ganache": "7.9.2",
+    "jsdom": "26.1.0"
+  },
+  "scripts": {
+    "build:token": "node scripts/build-test-token.cjs",
+    "test": "node tests/launch-contract.cjs && node tests/catalog.mjs && node tests/pons-preflight.mjs && node tests/frontend.cjs && node tests/wallet-flow.cjs"
+  }
 }

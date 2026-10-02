@@ -1,0 +1,26 @@
+const fs=require('fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom'),ganache=require('ganache'),ethers=require('ethers');
+(async()=>{
+ const {verifyReceipt}=await import('../lib/launch/catalog.js');
+ const artifact=JSON.parse(fs.readFileSync('assets/launch/test-token.json'));
+ const config=JSON.parse(fs.readFileSync('assets/launch/config.json'));
+ const chain=ganache.provider({logging:{quiet:true},chain:{chainId:46630,hardfork:'shanghai'}});
+ const originalFetch=global.fetch;
+ global.fetch=async(url,o)=>{const r=JSON.parse(o.body);return {ok:true,json:async()=>({result:await chain.request({method:r.method,params:r.params})})}};
+ let rejectConnect=true,sends=0;
+ const wallet={isMetaMask:true,on(){},removeListener(){},async request(r){if(r.method==='eth_requestAccounts'){if(rejectConnect)throw Object.assign(Error('Rejected'),{code:4001});return chain.request({method:'eth_accounts',params:[]})}if(r.method==='eth_sendTransaction'){sends++;const hash=await chain.request(r);setTimeout(()=>chain.request({method:'evm_mine',params:[]}),500);return hash}return chain.request(r)}};
+ const dom=new JSDOM(fs.readFileSync('index.html','utf8'),{runScripts:'outside-only',url:'https://example.com'}),w=dom.window;
+ w.ethers=ethers;w.ethereum=wallet;w.requestAnimationFrame=()=>0;w.HTMLElement.prototype.scrollIntoView=()=>{};w.HTMLDialogElement.prototype.showModal=function(){this.open=true};
+ w.fetch=async url=>({ok:true,json:async()=>url==='assets/launch/config.json'?config:url==='assets/launch/test-token.json'?artifact:String(url).startsWith('/api/launch-network')?{ready:true,chainId:46630}:String(url).startsWith('/api/launch-status')?verifyReceipt(String(url).split('hash=')[1]):{launches:[],fromBlock:0,toBlock:10,nextCursor:null}});
+ w.eval(fs.readFileSync('index.html','utf8').match(/<script>([\s\S]*?)<\/script>/)[1]);
+ const moduleCode=fs.readFileSync('assets/launch/launch.js','utf8').replace(/^import .*?;\n/,'const {BrowserProvider,ContractFactory,Contract,Interface,formatEther,keccak256,getAddress}=window.ethers;\n');
+ await w.eval('(async()=>{'+moduleCode+'})()');
+ const waitUntil=async fn=>{for(let i=0;i<300;i++){if(fn())return;await new Promise(r=>setTimeout(r,50))}throw Error('Timeout waiting for wallet flow')};
+ w.document.querySelector('#connectWallet').click();await waitUntil(()=>w.document.querySelector('#walletStatus').textContent.includes('cancelled'));assert.equal(sends,0);
+ rejectConnect=false;w.document.querySelector('#connectWallet').click();await waitUntil(()=>w.document.querySelector('#walletAddress').textContent!=='Not connected');
+ const f=w.document.querySelector('#tokenForm');f.elements.name.value='FLOW TEST';f.elements.symbol.value='FLOW';f.elements.description.value='Wallet flow test';f.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ assert(w.document.querySelector('#signLaunch').disabled);await w.dotLabLaunch.estimate(w.dotLabCurrentDraft);assert(!w.document.querySelector('#signLaunch').disabled);assert.equal(sends,0);
+ await w.dotLabLaunch.sign(w.dotLabCurrentDraft);assert.equal(sends,1);assert(w.document.querySelector('#launchStatus').textContent.includes('Confirmed on Robinhood testnet'));assert(w.document.querySelector('#launchContract').href.includes('/address/0x'));assert.equal(w.localStorage.getItem('dotlab.pendingTestLaunch.v1'),null);
+ const status=w.document.querySelector('#launchStatus').textContent;assert(status.includes('Token CA:'));assert(config.mainnet.enabled===false);
+ console.log('PASS: browser wallet cancellation, connection, fee estimate without signing, one signed test deployment, confirmation, CA and pending recovery cleanup (local EVM only)');
+ global.fetch=originalFetch;await chain.disconnect();dom.window.close();
+})().catch(e=>{console.error(e);process.exitCode=1});
